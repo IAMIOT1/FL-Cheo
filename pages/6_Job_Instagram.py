@@ -18,43 +18,36 @@ history_col = db["job_history"]
 st.subheader("📸 Kho Nhiệm Vụ Instagram Kiếm Xu")
 st.markdown("---")
 
-# 1. Lọc lấy danh sách ID các job đã làm
-completed_job_ids = [h["campaign_id"] for h in history_col.find({"user_id": ObjectId(st.session_state.user_id)})]
+# Các Tab phân loại nhiệm vụ Instagram
+tab_like, tab_follow, tab_comment = st.tabs([
+    "❤️ Thả Tim / Like", 
+    "➕ Theo Dõi", 
+    "💬 Bình Luận"
+])
 
-# 2. Truy vấn chiến dịch Instagram đang hoạt động, chưa làm và còn lượt
-query = {
-    "platform": "Instagram",
-    "active": True,
-    "_id": {"$nin": completed_job_ids},
-    "remaining": {"$gt": 0}
-}
-campaigns = list(campaigns_col.find(query))
+def render_ig_jobs(action_filter_keywords):
+    completed_job_ids = [h["campaign_id"] for h in history_col.find({"user_id": ObjectId(st.session_state.user_id)})]
+    
+    query = {
+        "platform": "Instagram",
+        "active": True,
+        "_id": {"$nin": completed_job_ids},
+        "remaining": {"$gt": 0},
+        "action_type": {"$in": action_filter_keywords}
+    }
+    
+    campaigns = list(campaigns_col.find(query))
+    campaigns = [c for c in campaigns if str(c["user"]) != st.session_state.user_id]
+    
+    if not campaigns:
+        st.info("🎉 Hiện không có nhiệm vụ nào trong mục này cả. Hãy quay lại sau nhé!")
+        return
 
-if not campaigns:
-    st.info("🎉 Hiện tại không có nhiệm vụ Instagram nào mới. Hãy quay lại sau nhé!")
-else:
     for camp in campaigns:
-        if str(camp["user"]) == st.session_state.user_id:
-            continue
-            
-        action_type = camp.get('action_type', 'Thả tim (Tym)')
+        action_type = camp.get('action_type', '')
         
-        # Phân loại icon và tiêu đề theo mẫu
-        if "Thả tim" in action_type or "Tym" in action_type or "Like" in action_type:
-            icon = "❤️"
-            title_text = "Thả tim chéo kiếm xu Instagram"
-        elif "Theo dõi" in action_type or "Follow" in action_type:
-            icon = "➕"
-            title_text = "Follow chéo kiếm xu Instagram"
-        elif "Bình luận" in action_type or "Comment" in action_type:
-            icon = "💬"
-            title_text = "Comment chéo kiếm xu Instagram"
-        else:
-            icon = "📌"
-            title_text = f"{action_type} Instagram"
-
         with st.container():
-            st.markdown(f"### {icon} {title_text}")
+            st.markdown(f"### 📌 {action_type} Instagram")
             st.markdown(f"🔗 **Link mục tiêu:** [Bấm vào đây để mở liên kết]({camp['link']})")
             
             col1, col2 = st.columns(2)
@@ -82,7 +75,16 @@ else:
                 campaigns_col.update_one({"_id": camp["_id"]}, {"$set": update_data})
                 
                 st.session_state.coins += camp["reward"]
-                st.success(f"✅ Hoàn thành! Đã cộng +{camp['reward']} xu vào tài khoản.")
+                st.success(f"✅ Hoàn thành! Đã cộng +{camp['reward']} xu.")
                 st.rerun()
                 
             st.markdown("---")
+
+with tab_like:
+    render_ig_jobs(["Thả tim (Tym)", "Thả tim", "Tym", "Like"])
+
+with tab_follow:
+    render_ig_jobs(["Theo dõi (Follow)", "Theo dõi", "Follow"])
+
+with tab_comment:
+    render_ig_jobs(["Bình luận (Comment)", "Bình luận", "Comment"])
