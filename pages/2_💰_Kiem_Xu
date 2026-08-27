@@ -1,0 +1,46 @@
+import streamlit as st
+from pymongo import MongoClient
+from bson import ObjectId
+import os
+
+st.set_page_config(page_title="Kiếm Xu", page_icon="💰")
+
+if not st.session_state.get("user_id"):
+    st.warning("Vui lòng đăng nhập ở trang chính trước!")
+    st.stop()
+
+MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client["flcheo_db"]
+users_col = db["users"]
+campaigns_col = db["campaigns"]
+accounts_col = db["configured_accounts"]
+
+st.subheader("💰 Danh Sách Job Kiếm Xu")
+st.markdown("Thực hiện nhiệm vụ để tích lũy xu.")
+
+campaigns = list(campaigns_col.find({"active": True}))
+if not campaigns:
+    st.warning("Hiện tại chưa có job nào.")
+else:
+    for camp in campaigns:
+        if str(camp["user"]) == st.session_state.user_id:
+            continue
+        with st.container():
+            col_info, col_action = st.columns([3, 1])
+            with col_info:
+                st.markdown(f"**Nền tảng:** {camp['platform']}")
+                st.markdown(f"🔗 Link mục tiêu: [Mở liên kết]({camp['link']})")
+                st.text(f"Phần thưởng: +{camp['reward']} Xu")
+            with col_action:
+                if st.button("Hoàn thành", key=str(camp["_id"])):
+                    check_acc = accounts_col.find_one({"user_id": ObjectId(st.session_state.user_id), "platform": camp['platform']})
+                    if not check_acc:
+                        st.error(f"Bạn chưa cài đặt nick **{camp['platform']}** ở phần Cấu Hình Nick!")
+                    else:
+                        users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": camp["reward"]}})
+                        campaigns_col.update_one({"_id": camp["_id"]}, {"$set": {"active": False}})
+                        st.session_state.coins += camp["reward"]
+                        st.success(f"Nhận thành công +{camp['reward']} xu!")
+                        st.rerun()
+            st.divider()
