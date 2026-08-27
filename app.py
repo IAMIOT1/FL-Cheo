@@ -121,7 +121,7 @@ if not st.session_state.user_id:
 else:
     st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại: **{st.session_state.coins} Xu**.")
     
-    # Kiểm tra quyền Admin để hiển thị nút truy cập trang quản trị
+    # Kiểm tra quyền Admin để hiển thị lối tắt chuyển trang
     user_data = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
     if user_data and user_data.get("role") == "admin":
         st.markdown("---")
@@ -130,7 +130,7 @@ else:
             st.switch_page("pages/_10_Quan_Tri_Admin.py")
             
     st.markdown("---")
-    st.info("👉 Hãy sử dụng **menu ở thanh bên trái (Sidebar)** để truy cập các tính năng: Cấu hình nick, Kiếm xu, Điểm danh, Quản lý chiến dịch và Xếp hạng.")
+    st.info("👉 Hãy sử dụng **menu ở thanh bên trái (Sidebar)** để truy cập các tính năng hệ thống.")
     
     if st.button("Đăng Xuất"):
         st.session_state.user_id = None
