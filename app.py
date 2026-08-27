@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # --- KẾT NỐI MONGODB ATLAS ---
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://toinguyen712600_db_user:HiW5cikjvvwVhuyY@cluster0.3iz8mfa.mongodb.net/flcheo_db?retryWrites=true&w=majority&appName=Cluster0")
+MONGO_URI = os.getenv("MONGO_URI")
 
 @st.cache_resource
 def init_connection():
