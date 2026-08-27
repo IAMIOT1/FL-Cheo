@@ -1,5 +1,6 @@
 import streamlit as st
 from pymongo import MongoClient
+from bson import ObjectId
 import os
 import random
 import time
@@ -106,7 +107,8 @@ if not st.session_state.user_id:
                         "username": st.session_state.temp_username,
                         "email": st.session_state.temp_email,
                         "password": st.session_state.temp_password,
-                        "coins": 100
+                        "coins": 100,
+                        "role": "user" # Mặc định là user thường
                     })
                     st.session_state.user_id = str(res.inserted_id)
                     st.session_state.username = st.session_state.temp_username
@@ -118,10 +120,21 @@ if not st.session_state.user_id:
                     st.error("Mã PIN không chính xác!")
 else:
     st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại: **{st.session_state.coins} Xu**.")
+    
+    # Kiểm tra quyền Admin để hiển thị nút truy cập trang quản trị
+    user_data = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
+    if user_data and user_data.get("role") == "admin":
+        st.markdown("---")
+        st.error("👑 **Khu vực dành cho Quản trị viên hệ thống**")
+        if st.button("🚀 Đi tới Trang Quản Trị Admin"):
+            st.switch_page("pages/_10_Quan_Tri_Admin.py")
+            
+    st.markdown("---")
     st.info("👉 Hãy sử dụng **menu ở thanh bên trái (Sidebar)** để truy cập các tính năng: Cấu hình nick, Kiếm xu, Điểm danh, Quản lý chiến dịch và Xếp hạng.")
     
     if st.button("Đăng Xuất"):
         st.session_state.user_id = None
         st.session_state.username = None
         st.session_state.coins = 0
+        st.session_state.reg_step = 1
         st.rerun()

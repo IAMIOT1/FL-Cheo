@@ -5,7 +5,6 @@ import os
 
 st.set_page_config(page_title="Trang Quản Trị Admin", page_icon="👑", layout="wide")
 
-# Kiểm tra đăng nhập
 if not st.session_state.get("user_id"):
     st.warning("⚠️ Vui lòng đăng nhập trước!")
     st.stop()
@@ -16,7 +15,7 @@ db = client["flcheo_db"]
 users_col = db["users"]
 campaigns_col = db["campaigns"]
 
-# Kiểm tra quyền Admin
+# Chặn tuyệt đối nếu không phải admin
 current_user = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
 if not current_user or current_user.get("role") != "admin":
     st.error("⛔ CẢNH BÁO: Bạn không có quyền truy cập trang quản trị của Admin!")
@@ -25,16 +24,14 @@ if not current_user or current_user.get("role") != "admin":
 st.subheader("👑 Bảng Điều Khiển Quản Trị Hệ Thống (Admin Dashboard)")
 st.markdown("---")
 
-# Chia tab quản lý
 tab_users, tab_campaigns, tab_stats = st.tabs([
     "👥 Quản Lý Người Dùng", 
     "🚀 Quản Lý Chiến Dịch", 
     "📊 Thống Kê Hệ Thống"
 ])
 
-# --- TAB 1: QUẢN LÝ NGƯỜI DÙNG ---
 with tab_users:
-    st.markdown("### 👥 Danh sách thành viên trong hệ thống")
+    st.markdown("### 👥 Danh sách thành viên")
     all_users = list(users_col.find({}))
     
     for u in all_users:
@@ -47,27 +44,25 @@ with tab_users:
             role = u.get('role', 'user')
             st.write(f"🛡️ **Quyền:** `{role}`")
         with col4:
-            # Nút cấp hoặc hủy quyền admin (tránh tự khóa chính mình)
             if str(u["_id"]) != st.session_state.user_id:
                 if role == "admin":
                     if st.button("Hạ quyền User", key=f"demote_{u['_id']}"):
                         users_col.update_one({"_id": u["_id"]}, {"$set": {"role": "user"}})
-                        st.success(f"Đã hạ quyền của {u.get('email')} xuống User!")
+                        st.success("Đã hạ quyền!")
                         st.rerun()
                 else:
                     if st.button("Lên quyền Admin", key=f"promote_{u['_id']}"):
                         users_col.update_one({"_id": u["_id"]}, {"$set": {"role": "admin"}})
-                        st.success(f"Đã nâng quyền {u.get('email')} lên Admin!")
+                        st.success("Đã lên quyền Admin!")
                         st.rerun()
         st.markdown("---")
 
-# --- TAB 2: QUẢN LÝ CHIẾN DỊCH ---
 with tab_campaigns:
-    st.markdown("### 🚀 Toàn bộ chiến dịch tăng tương tác")
+    st.markdown("### 🚀 Toàn bộ chiến dịch")
     all_campaigns = list(campaigns_col.find({}))
     
     if not all_campaigns:
-        st.info("Chưa có chiến dịch nào được tạo.")
+        st.info("Chưa có chiến dịch nào.")
     else:
         for camp in all_campaigns:
             owner = users_col.find_one({"_id": camp.get("user")})
@@ -78,23 +73,18 @@ with tab_campaigns:
                 st.markdown(f"🔗 Link: [Mở liên kết]({camp.get('link')})")
                 st.text(f"👤 Chủ sở hữu: {owner_email} | 💰 Thưởng: {camp.get('reward')} Xu | ⏳ Còn lại: {camp.get('remaining')} lượt")
                 
-                # Nút xóa/khóa chiến dịch vi phạm
-                col_btn1, col_btn2 = st.columns([1, 5])
-                with col_btn1:
-                    if st.button("🗑️ Xóa chiến dịch", key=f"del_camp_{camp['_id']}"):
-                        campaigns_col.delete_one({"_id": camp["_id"]})
-                        st.warning("Đã xóa chiến dịch thành công!")
-                        st.rerun()
+                if st.button("🗑️ Xóa chiến dịch", key=f"del_camp_{camp['_id']}"):
+                    campaigns_col.delete_one({"_id": camp["_id"]})
+                    st.warning("Đã xóa!")
+                    st.rerun()
                 st.markdown("---")
 
-# --- TAB 3: THỐNG KÊ HỆ THỐNG ---
 with tab_stats:
-    st.markdown("### 📊 Số liệu tổng quan")
+    st.markdown("### 📊 Thống kê")
     total_users_count = users_col.count_documents({})
     total_campaigns_count = campaigns_col.count_documents({})
     active_campaigns_count = campaigns_col.count_documents({"active": True})
     
-    # Tính tổng số xu đang tồn hành trong hệ thống
     pipeline = [{"$group": {"_id": None, "total_coins": {"$sum": "$coins"}}}]
     coin_result = list(users_col.aggregate(pipeline))
     total_system_coins = coin_result[0]["total_coins"] if coin_result else 0
@@ -103,4 +93,4 @@ with tab_stats:
     m1.metric("Tổng thành viên", total_users_count)
     m2.metric("Tổng chiến dịch", total_campaigns_count)
     m3.metric("Chiến dịch đang chạy", active_campaigns_count)
-    m4.metric("Tổng xu toàn hệ thống", f"{total_system_coins:,} Xu")
+    m4.metric("Tổng xu hệ thống", f"{total_system_coins:,} Xu")
