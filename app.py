@@ -121,13 +121,18 @@ if not st.session_state.user_id:
 else:
     st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại: **{st.session_state.coins} Xu**.")
     
-    # Kiểm tra quyền Admin
+    # Kiểm tra quyền Admin để thông báo
     user_data = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
     if user_data and user_data.get("role") == "admin":
         st.markdown("---")
-        st.error("👑 **Khu vực dành cho Quản trị viên hệ thống**")
-        if st.button("🚀 Đi tới Trang Quản Trị Admin"):
-            st.switch_page("pages/10_Quan_Tri_Admin.py")
+        st.info("👑 Bạn đang đăng nhập bằng tài khoản **Admin**. Hãy chọn trang quản trị ở thanh menu bên trái (Sidebar).")
             
     st.markdown("---")
     st.info("👉 Hãy sử dụng **menu ở thanh bên trái (Sidebar)** để truy cập các tính năng hệ thống.")
+    
+    if st.button("Đăng Xuất"):
+        st.session_state.user_id = None
+        st.session_state.username = None
+        st.session_state.coins = 0
+        st.session_state.reg_step = 1
+        st.rerun()
