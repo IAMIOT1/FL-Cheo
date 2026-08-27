@@ -16,42 +16,89 @@ campaigns_col = db["campaigns"]
 
 st.subheader("🚀 Tạo Chiến Dịch Tăng Tương Tác")
 
+# Cố định giá trả thưởng mỗi lượt là 100 Xu, phí sàn 2% -> người nhận thực tế 98 Xu
+REWARD_PER_JOB = 100
+NET_REWARD = 98 
+
 with st.form("form_create_campaign"):
     boost_platform = st.selectbox("Chọn ứng dụng", ["TikTok", "Facebook", "Instagram"])
     
-    # Bổ sung thêm loại tương tác để người làm job biết cần làm gì (Tym, Follow, Comment)
     boost_action = st.selectbox(
         "Loại tương tác yêu cầu", 
         ["Thả tim (Tym)", "Theo dõi (Follow)", "Bình luận (Comment)"]
     )
     
     boost_link = st.text_input("Đường dẫn (Link) bài viết hoặc trang cá nhân")
-    boost_reward = st.number_input("Xu trả thưởng mỗi lượt", min_value=5, value=10)
+    
+    # Nhập số lượng lượt muốn mua
+    quantity = st.number_input("Số lượng lượt cần tăng", min_value=1, value=10, step=1)
+    
+    # Tính tổng chi phí (Mỗi lượt cố định 100 xu)
+    total_cost = quantity * REWARD_PER_JOB
+    
+    st.info(f"💡 Chi phí cố định: **{REWARD_PER_JOB} Xu/lượt** (Người làm nhận được {NET_REWARD} Xu, phí hệ thống 2%). Tổng thanh toán: **{total_cost} Xu**.")
     
     submitted_boost = st.form_submit_button("Tạo Chiến Dịch")
     
     if submitted_boost:
-        if not boost_link:
-            st.warning("Vui lòng nhập link mục tiêu!")
-        elif st.session_state.coins < boost_reward:
-            st.error("Số dư xu trong ví không đủ để tạo chiến dịch này!")
+        # Lưu lại thông tin vào session state để xử lý logic kiểm tra tiền ngoài form nếu thiếu
+        st.session_state.pending_campaign = {
+            "platform": boost_platform,
+            "action_type": boost_action,
+            "link": boost_link,
+            "quantity": quantity,
+            "total_cost": total_cost,
+            "reward_per_job": NET_REWARD # Số xu người làm nhận thực tế sau khi trừ 2%
+        }
+
+# Xử lý logic sau khi submit form
+if "pending_campaign" in st.session_state and st.session_state.pending_campaign:
+    camp_data = st.session_state.pending_campaign
+    
+    if not camp_data["link"]:
+        st.warning("⚠️ Vui lòng nhập đường dẫn (link) mục tiêu!")
+        del st.session_state.pending_campaign
+    else:
+        # Kiểm tra số dư ví hiện tại từ DB để đảm bảo chính xác nhất
+        current_user = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
+        user_coins = current_user.get("coins", 0)
+        
+        if user_coins < camp_data["total_cost"]:
+            st.error(f"❌ Số dư ví không đủ! Bạn cần **{camp_data['total_cost']} Xu** nhưng trong ví chỉ có **{user_coins} Xu**.")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                # Nút điều hướng sang trang Kiếm Xu
+                if st.button("💰 Đi Kiếm Thêm Xu Ngay"):
+                    st.switch_page("pages/2_Kiem_Xu.py")
+            with col2:
+                # Nút hủy để điều chỉnh lại
+                if st.button("↩️ Hủy & Điều Chỉnh Lại"):
+                    del st.session_state.pending_campaign
+                    st.rerun()
         else:
-            # Trừ xu người tạo
+            # Trừ xu trong database
             users_col.update_one(
                 {"_id": ObjectId(st.session_state.user_id)}, 
-                {"$inc": {"coins": -boost_reward}}
+                {"$inc": {"coins": -camp_data["total_cost"]}}
             )
             
-            # Lưu chiến dịch kèm theo loại tương tác (action_type)
+            # Tạo chiến dịch tương ứng với số lượng lượt
             campaigns_col.insert_one({
                 "user": ObjectId(st.session_state.user_id),
-                "platform": boost_platform,
-                "action_type": boost_action,  # <--- Lưu trường này để các trang Job hiển thị
-                "link": boost_link,
-                "reward": boost_reward,
+                "platform": camp_data["platform"],
+                "action_type": camp_data["action_type"],
+                "link": camp_data["link"],
+                "reward": camp_data["reward_per_job"], # 98 xu (đã trừ 2% cho người làm)
+                "original_reward": REWARD_PER_JOB,     # 100 xu gốc
+                "quantity": camp_data["quantity"],
+                "remaining": camp_data["quantity"],    # Số lượt còn lại để người khác nhận job
                 "active": True
             })
             
-            st.session_state.coins -= boost_reward
+            # Cập nhật session state của ví
+            st.session_state.coins = user_coins - camp_data["total_cost"]
+            del st.session_state.pending_campaign
+            
             st.success("🎉 Tạo chiến dịch tăng tương tác thành công!")
             st.rerun()
