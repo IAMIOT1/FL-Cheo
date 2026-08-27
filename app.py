@@ -131,8 +131,24 @@ else:
     st.info("👉 Hãy sử dụng **menu ở thanh bên trái (Sidebar)** để truy cập các tính năng hệ thống.")
     
     if st.button("Đăng Xuất"):
-        st.session_state.user_id = None
-        st.session_state.username = None
-        st.session_state.coins = 0
-        st.session_state.reg_step = 1
-        st.rerun()
+            st.session_state.user_id = None
+            st.session_state.username = None
+            st.session_state.coins = 0
+            st.session_state.reg_step = 1
+            st.rerun()
+
+# --- BỔ SUNG ĐOẠN NÀY Ở DÒNG CUỐI CÙNG CỦA APP.PY ---
+pages_dict = {
+    "Trang Chủ": [
+        st.Page("app.py", title="Trang Chủ", icon="🏠")
+    ]
+}
+
+# Nếu là admin thì gắn thêm file trang admin vào menu
+if user_data and user_data.get("role") == "admin":
+    pages_dict["Quản Trị Hệ Thống"] = [
+        st.Page("pages/10_Quan_Tri_Admin.py", title="Khu Vực Admin", icon="👑")
+    ]
+
+pg = st.navigation(pages_dict)
+pg.run()
