@@ -210,24 +210,33 @@ else:
     # TAB 1: CẤU HÌNH NICK ĐỂ LÀM NHIỆM VỤ
     with tab_config:
         st.subheader("Cài Đặt Nick Mạng Xã Hội")
-        st.markdown("Thêm các tài khoản của bạn để hệ thống xác nhận khi bạn đi làm nhiệm vụ (TikTok, Facebook, Instagram).")
+        st.markdown("Thêm tài khoản của bạn để hệ thống xác nhận khi đi làm nhiệm vụ (TikTok, Facebook, Instagram).")
         
         with st.form("form_config_account"):
             cfg_platform = st.selectbox("Chọn nền tảng", ["TikTok", "Facebook", "Instagram"])
-            cfg_username = st.text_input("Tên tài khoản hoặc Link trang cá nhân của bạn")
+            cfg_username = st.text_input("ID tài khoản hoặc Link trang cá nhân của bạn")
             submitted_cfg = st.form_submit_button("Lưu Cấu Hình Nick")
             
             if submitted_cfg:
-                if not cfg_username:
-                    st.warning("Vui lòng nhập tên tài khoản hoặc link cá nhân!")
+                if not cfg_username or len(cfg_username.strip()) < 3:
+                    st.warning("Vui lòng nhập ID hoặc link hợp lệ (tối thiểu 3 ký tự)!")
                 else:
-                    # Lưu vào database collection 'configured_accounts'
-                    accounts_col.update_one(
-                        {"user_id": ObjectId(st.session_state.user_id), "platform": cfg_platform},
-                        {"$set": {"account_info": cfg_username}},
-                        upsert=True
-                    )
-                    st.success(f"Đã lưu thành công nick {cfg_platform}!")
+                    # Kiểm tra xem ID/link này đã được cấu hình bởi tài khoản khác hay chưa
+                    existing_acc = accounts_col.find_one({"platform": cfg_platform, "account_info": cfg_username.strip()})
+                    
+                    if existing_acc and str(existing_acc["user_id"]) != st.session_state.user_id:
+                        st.error("Tài khoản/ID này đã được cấu hình bởi người dùng khác trên hệ thống! Vui lòng nhập ID chính xác của bạn.")
+                    else:
+                        # Lưu vào database với trạng thái chờ quét (pending)
+                        accounts_col.update_one(
+                            {"user_id": ObjectId(st.session_state.user_id), "platform": cfg_platform},
+                            {"$set": {
+                                "account_info": cfg_username.strip(),
+                                "status": "Đang chờ quét xác thực"
+                            }},
+                            upsert=True
+                        )
+                        st.success(f"Đã tiếp nhận nick {cfg_platform}! Hệ thống đang tự động quét và xác thực trong vòng 3-5 phút tới.")
 
         st.markdown("### 📌 Danh sách nick đã cài đặt của bạn:")
         my_accounts = list(accounts_col.find({"user_id": ObjectId(st.session_state.user_id)}))
@@ -235,7 +244,8 @@ else:
             st.info("Bạn chưa cấu hình nick nào. Hãy thêm ít nhất 1 nick để bắt đầu làm nhiệm vụ.")
         else:
             for acc in my_accounts:
-                st.write(f"- **{acc['platform']}**: `{acc['account_info']}`")
+                status_text = acc.get('status', 'Đã hoạt động')
+                st.write(f"- **{acc['platform']}**: `{acc['account_info']}` — *Trạng thái: {status_text}*")
 
     # TAB 2: KIẾM XU (CÁC JOB DO NGƯỜI DÙNG KHÁC YÊU CẦU)
     with tab_earn:
@@ -290,7 +300,6 @@ else:
                 elif st.session_state.coins < boost_reward:
                     st.error("Số dư xu của bạn không đủ để tạo chiến dịch này!")
                 else:
-                    # Trừ xu người tạo chiến dịch
                     users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": -boost_reward}})
                     campaigns_col.insert_one({
                         "user": ObjectId(st.session_state.user_id),
