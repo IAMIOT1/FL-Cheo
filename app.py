@@ -53,6 +53,32 @@ if "coins" not in st.session_state:
 if "reg_step" not in st.session_state:
     st.session_state.reg_step = 1
 
+# --- PHÂN QUYỀN TRANG BẰNG st.navigation ---
+# Định nghĩa trang chủ (ai cũng thấy)
+pages_dict = {
+    "Trang Chủ": [
+        st.Page("app.py", title="Trang Chủ", icon="🏠")
+    ]
+}
+
+# Kiểm tra xem user hiện tại có phải là admin không để add thêm trang quản trị vào menu
+is_admin = False
+if st.session_state.user_id:
+    try:
+        user_data = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
+        if user_data and user_data.get("role") == "admin":
+            is_admin = True
+    except:
+        pass
+
+if is_admin:
+    pages_dict["Quản Trị Hệ Thống"] = [
+        st.Page("pages/10_Quan_Tri_Admin.py", title="Khu Vực Admin", icon="👑")
+    ]
+
+pg = st.navigation(pages_dict)
+
+# --- GIAO DIỆN CHÍNH CỦA APP.PY ---
 st.title("🚀 Nền Tảng Tăng Tương Tác & Fl Chéo")
 st.markdown("---")
 
@@ -108,7 +134,7 @@ if not st.session_state.user_id:
                         "email": st.session_state.temp_email,
                         "password": st.session_state.temp_password,
                         "coins": 100,
-                        "role": "user" # Mặc định là user thường
+                        "role": "user"
                     })
                     st.session_state.user_id = str(res.inserted_id)
                     st.session_state.username = st.session_state.temp_username
@@ -120,18 +146,12 @@ if not st.session_state.user_id:
                     st.error("Mã PIN không chính xác!")
 else:
     st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại: **{st.session_state.coins} Xu**.")
-
-    # Kiểm tra quyền Admin để hiển thị liên kết truy cập trang quản trị
-    user_data = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
-    if user_data and user_data.get("role") == "admin":
+    
+    if is_admin:
         st.markdown("---")
-        st.error("👑 **Khu vực dành cho Quản trị viên hệ thống**")
-        
-        # Dùng link trực tiếp đến file trong thư mục pages thay vì st.switch_page
-        st.page_link("pages/_10_Quan_Tri_Admin.py", label="🚀 Đi tới Trang Quản Trị Admin", icon="👑")
-            
+        st.info("👑 Bạn đang đăng nhập bằng tài khoản **Admin**. Hãy nhìn sang **thanh Sidebar bên trái**, mục **Quản Trị Hệ Thống** đã xuất hiện để bạn có thể bấm vào truy cập trực tiếp!")
+
     st.markdown("---")
-    st.info("👉 Hãy sử dụng **menu ở thanh bên trái (Sidebar)** để truy cập các tính năng hệ thống.")
     
     if st.button("Đăng Xuất"):
         st.session_state.user_id = None
@@ -139,3 +159,6 @@ else:
         st.session_state.coins = 0
         st.session_state.reg_step = 1
         st.rerun()
+
+# Thực thi điều hướng trang của Streamlit
+pg.run()
