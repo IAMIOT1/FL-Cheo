@@ -13,7 +13,8 @@ st.set_page_config(
 )
 
 # --- KẾT NỐI MONGODB ATLAS ---
-MONGO_URI = os.getenv("MONGO_URI")
+# Lấy MONGO_URI từ Streamlit Secrets hoặc biến môi trường
+MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
 
 @st.cache_resource
 def init_connection():
@@ -35,9 +36,9 @@ if "username" not in st.session_state:
 if "coins" not in st.session_state:
     st.session_state.coins = 0
 
-# Biến tạm phục vụ quá trình đăng ký có mã PIN và mật khẩu
+# Biến tạm phục vụ quá trình đăng ký
 if "reg_step" not in st.session_state:
-    st.session_state.reg_step = 1  # Bước 1: Nhập thông tin, Bước 2: Nhập mã PIN
+    st.session_state.reg_step = 1  # 1: Nhập thông tin, 2: Nhập mã PIN
 if "temp_username" not in st.session_state:
     st.session_state.temp_username = ""
 if "temp_email" not in st.session_state:
@@ -83,6 +84,7 @@ if not st.session_state.user_id:
             remaining_min = int((st.session_state.lock_until - current_time) / 60) + 1
             st.error(f"Bạn đã nhập sai mã PIN quá nhiều lần. Vui lòng thử lại sau {remaining_min} phút nữa!")
         else:
+            # BƯỚC 1: Nhập thông tin đăng ký
             if st.session_state.reg_step == 1:
                 reg_user = st.text_input("Tên đăng nhập mới", key="reg_user")
                 reg_email = st.text_input("Địa chỉ Email của bạn", key="reg_email")
@@ -109,20 +111,24 @@ if not st.session_state.user_id:
                             st.session_state.temp_username = reg_user
                             st.session_state.temp_email = reg_email
                             st.session_state.temp_password = reg_pass
-                            st.session_state.reg_step = 2
-                            st.success("Mã PIN đã được khởi tạo!")
-                            st.info(f"🔑 **Mã PIN xác thực của bạn là: {pin}**")
+                            st.session_state.reg_step = 2  # Chuyển sang bước nhập mã PIN
+                            st.success("Mã PIN đã được khởi tạo thành công!")
                             st.rerun()
 
+            # BƯỚC 2: Hiện ô nhập mã PIN ngay tại đây khi đã gửi mã
             elif st.session_state.reg_step == 2:
-                st.info(f"Đã gửi mã PIN đến email: **{st.session_state.temp_email}**")
+                st.info(f"Mã xác thực đã được gửi tới email: **{st.session_state.temp_email}**")
+                
+                # (Dòng hiển thị mã PIN thử nghiệm để bạn test trên web)
+                st.warning(f"🔑 Mã PIN mô phỏng của bạn là: **{st.session_state.generated_pin}**")
+                
                 entered_pin = st.text_input("Nhập mã PIN gồm 6 chữ số", type="password", key="entered_pin")
                 
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
                     if st.button("Xác Nhận Đăng Ký"):
                         if entered_pin == st.session_state.generated_pin:
-                            # Lưu tài khoản hoàn chỉnh kèm mật khẩu vào Database
+                            # Lưu tài khoản mới vào Database
                             new_user = {
                                 "username": st.session_state.temp_username,
                                 "email": st.session_state.temp_email,
@@ -134,7 +140,7 @@ if not st.session_state.user_id:
                             st.session_state.username = st.session_state.temp_username
                             st.session_state.coins = 100
                             
-                            # Reset trạng thái đăng ký tạm thời
+                            # Reset trạng thái đăng ký
                             st.session_state.reg_step = 1
                             st.session_state.wrong_attempts = 0
                             st.success("Đăng ký tài khoản thành công!")
