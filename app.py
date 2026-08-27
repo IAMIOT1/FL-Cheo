@@ -120,14 +120,15 @@ if not st.session_state.user_id:
                     st.error("Mã PIN không chính xác!")
 else:
     st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại: **{st.session_state.coins} Xu**.")
-    
-    # Kiểm tra quyền Admin để hiển thị lối tắt chuyển trang
+
+    # Kiểm tra quyền Admin để hiển thị liên kết truy cập trang quản trị
     user_data = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
     if user_data and user_data.get("role") == "admin":
         st.markdown("---")
         st.error("👑 **Khu vực dành cho Quản trị viên hệ thống**")
-        if st.button("🚀 Đi tới Trang Quản Trị Admin"):
-            st.switch_page("pages/_10_Quan_Tri_Admin.py")
+        
+        # Dùng link trực tiếp đến file trong thư mục pages thay vì st.switch_page
+        st.page_link("pages/_10_Quan_Tri_Admin.py", label="🚀 Đi tới Trang Quản Trị Admin", icon="👑")
             
     st.markdown("---")
     st.info("👉 Hãy sử dụng **menu ở thanh bên trái (Sidebar)** để truy cập các tính năng hệ thống.")
