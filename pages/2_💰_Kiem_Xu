@@ -17,7 +17,7 @@ campaigns_col = db["campaigns"]
 accounts_col = db["configured_accounts"]
 
 st.subheader("💰 Danh Sách Job Kiếm Xu")
-st.markdown("Thực hiện nhiệm vụ để tích lũy xu.")
+st.markdown("Thực hiện các nhiệm vụ do người dùng khác yêu cầu để tích lũy xu.")
 
 campaigns = list(campaigns_col.find({"active": True}))
 if not campaigns:
@@ -34,9 +34,16 @@ else:
                 st.text(f"Phần thưởng: +{camp['reward']} Xu")
             with col_action:
                 if st.button("Hoàn thành", key=str(camp["_id"])):
-                    check_acc = accounts_col.find_one({"user_id": ObjectId(st.session_state.user_id), "platform": camp['platform']})
+                    # Kiểm tra xem người dùng đã cài cấu hình nick cho nền tảng này chưa
+                    check_acc = accounts_col.find_one({
+                        "user_id": ObjectId(st.session_state.user_id), 
+                        "platform": camp['platform']
+                    })
+                    
                     if not check_acc:
                         st.error(f"Bạn chưa cài đặt nick **{camp['platform']}** ở phần Cấu Hình Nick!")
+                    elif check_acc.get('status') == "Đang chờ quét xác thực":
+                        st.warning("Nick của bạn đang trong thời gian hệ thống quét xác thực (3-5 phút). Vui lòng đợi hoàn tất trước khi làm job!")
                     else:
                         users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": camp["reward"]}})
                         campaigns_col.update_one({"_id": camp["_id"]}, {"$set": {"active": False}})
