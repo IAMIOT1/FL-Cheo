@@ -53,32 +53,6 @@ if "coins" not in st.session_state:
 if "reg_step" not in st.session_state:
     st.session_state.reg_step = 1
 
-# --- PHÂN QUYỀN TRANG BẰNG st.navigation ---
-# Định nghĩa trang chủ (ai cũng thấy)
-pages_dict = {
-    "Trang Chủ": [
-        st.Page("app.py", title="Trang Chủ", icon="🏠")
-    ]
-}
-
-# Kiểm tra xem user hiện tại có phải là admin không để add thêm trang quản trị vào menu
-is_admin = False
-if st.session_state.user_id:
-    try:
-        user_data = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
-        if user_data and user_data.get("role") == "admin":
-            is_admin = True
-    except:
-        pass
-
-if is_admin:
-    pages_dict["Quản Trị Hệ Thống"] = [
-        st.Page("pages/10_Quan_Tri_Admin.py", title="Khu Vực Admin", icon="👑")
-    ]
-
-pg = st.navigation(pages_dict)
-
-# --- GIAO DIỆN CHÍNH CỦA APP.PY ---
 st.title("🚀 Nền Tảng Tăng Tương Tác & Fl Chéo")
 st.markdown("---")
 
@@ -147,18 +121,13 @@ if not st.session_state.user_id:
 else:
     st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại: **{st.session_state.coins} Xu**.")
     
-    if is_admin:
+    # Kiểm tra quyền Admin
+    user_data = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
+    if user_data and user_data.get("role") == "admin":
         st.markdown("---")
-        st.info("👑 Bạn đang đăng nhập bằng tài khoản **Admin**. Hãy nhìn sang **thanh Sidebar bên trái**, mục **Quản Trị Hệ Thống** đã xuất hiện để bạn có thể bấm vào truy cập trực tiếp!")
-
+        st.error("👑 **Khu vực dành cho Quản trị viên hệ thống**")
+        if st.button("🚀 Đi tới Trang Quản Trị Admin"):
+            st.switch_page("pages/10_Quan_Tri_Admin.py")
+            
     st.markdown("---")
-    
-    if st.button("Đăng Xuất"):
-        st.session_state.user_id = None
-        st.session_state.username = None
-        st.session_state.coins = 0
-        st.session_state.reg_step = 1
-        st.rerun()
-
-# Thực thi điều hướng trang của Streamlit
-pg.run()
+    st.info("👉 Hãy sử dụng **menu ở thanh bên trái (Sidebar)** để truy cập các tính năng hệ thống.")
