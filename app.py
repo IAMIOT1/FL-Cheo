@@ -4,6 +4,9 @@ from bson import ObjectId
 import os
 import random
 import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(
@@ -13,8 +16,11 @@ st.set_page_config(
 )
 
 # --- KẾT NỐI MONGODB ATLAS ---
-# Lấy MONGO_URI từ Streamlit Secrets hoặc biến môi trường
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
+
+# Cấu hình tài khoản gửi email
+EMAIL_SENDER = "toinguyen7126@gmail.com"
+EMAIL_PASSWORD = "japg eyvh ontl dliw"
 
 @st.cache_resource
 def init_connection():
@@ -27,6 +33,27 @@ try:
     campaigns_col = db["campaigns"]
 except Exception as e:
     st.error(f"Lỗi kết nối database: {e}")
+
+# --- HÀM GỬI EMAIL THẬT ---
+def send_email_pin(receiver_email, pin_code):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_SENDER
+        msg['To'] = receiver_email
+        msg['Subject'] = "Mã Xác Thực Đăng Ký Tài Khoản (Fl Chéo)"
+        
+        body = f"Chào bạn,\n\nMã PIN xác thực tài khoản của bạn là: {pin_code}\nMã này có hiệu lực để hoàn tất đăng ký.\n\nTrân trọng!"
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Kết nối tới server SMTP của Gmail
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
+        server.quit()
+        return True, "Gửi email thành công!"
+    except Exception as e:
+        return False, f"Lỗi gửi email: {str(e)}"
 
 # --- QUẢN LÝ TRẠNG THÁI SESSION ---
 if "user_id" not in st.session_state:
@@ -107,22 +134,27 @@ if not st.session_state.user_id:
                         else:
                             # Sinh mã PIN ngẫu nhiên 6 chữ số
                             pin = str(random.randint(100000, 999999))
-                            st.session_state.generated_pin = pin
-                            st.session_state.temp_username = reg_user
-                            st.session_state.temp_email = reg_email
-                            st.session_state.temp_password = reg_pass
-                            st.session_state.reg_step = 2  # Chuyển sang bước nhập mã PIN
-                            st.success("Mã PIN đã được khởi tạo thành công!")
-                            st.rerun()
+                            
+                            # Gửi email thật
+                            with st.spinner("Đang gửi mã PIN tới email của bạn..."):
+                                success, msg = send_email_pin(reg_email, pin)
+                            
+                            if success:
+                                st.session_state.generated_pin = pin
+                                st.session_state.temp_username = reg_user
+                                st.session_state.temp_email = reg_email
+                                st.session_state.temp_password = reg_pass
+                                st.session_state.reg_step = 2  # Chuyển sang bước nhập mã PIN
+                                st.success("Mã PIN đã được gửi vào Email của bạn. Hãy kiểm tra hộp thư!")
+                                st.rerun()
+                            else:
+                                st.error(f"Không thể gửi email: {msg}")
 
             # BƯỚC 2: Hiện ô nhập mã PIN ngay tại đây khi đã gửi mã
             elif st.session_state.reg_step == 2:
                 st.info(f"Mã xác thực đã được gửi tới email: **{st.session_state.temp_email}**")
                 
-                # (Dòng hiển thị mã PIN thử nghiệm để bạn test trên web)
-                st.warning(f"🔑 Mã PIN mô phỏng của bạn là: **{st.session_state.generated_pin}**")
-                
-                entered_pin = st.text_input("Nhập mã PIN gồm 6 chữ số", type="password", key="entered_pin")
+                entered_pin = st.text_input("Nhập mã PIN gồm 6 chữ số từ email", type="password", key="entered_pin")
                 
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
