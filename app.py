@@ -23,25 +23,27 @@ with st.sidebar:
       index=0,
   )
 
-# Thiết lập màu sắc chi tiết cho từng chế độ để đảm bảo độ tương phản và thẩm mỹ cao nhất
+# Thiết lập màu sắc chuẩn mực cho từng chế độ
 if st.session_state.theme_mode == "Sáng (Light Mode)":
   bg_color = "#f8fafc"
   card_bg = "#ffffff"
-  text_color = "#1e293b"  # Màu chữ tối (Xám đậm/Xanh đen) cực kỳ sắc nét
-  heading_color = "#0284c7"  # Xanh dương đậm chủ đạo
-  border_color = "rgba(2, 132, 199, 0.2)"
+  text_color = "#0f172a"  # Chữ cực kỳ đậm và rõ
+  heading_color = "#0284c7"
+  border_color = "rgba(2, 132, 199, 0.25)"
   sidebar_bg = "#f1f5f9"
   sidebar_text = "#0f172a"
   input_bg = "#ffffff"
+  input_text = "#0f172a"
 elif st.session_state.theme_mode == "Tối (Neon Blue)":
   bg_color = "#0b0f19"
   card_bg = "rgba(17, 24, 39, 0.75)"
-  text_color = "#e2e8f0"  # Màu chữ sáng (Trắng khói) dễ chịu cho mắt
-  heading_color = "#00f2fe"  # Xanh neon rực rỡ
+  text_color = "#e2e8f0"
+  heading_color = "#00f2fe"
   border_color = "rgba(0, 242, 254, 0.25)"
   sidebar_bg = "#070a13"
   sidebar_text = "#f8fafc"
   input_bg = "#111827"
+  input_text = "#ffffff"
 else:
   bg_color = "transparent"
   card_bg = "transparent"
@@ -51,8 +53,9 @@ else:
   sidebar_bg = "transparent"
   sidebar_text = "inherit"
   input_bg = "transparent"
+  input_text = "inherit"
 
-# ================= CSS HOÀN THIỆN ĐỘ THẨM MỸ =================
+# ================= CSS HOÀN THIỆN ĐỂ KHÔNG BAO GIỜ BỊ MẤT CHỮ =================
 st.markdown(
     f"""
     <style>
@@ -62,7 +65,11 @@ st.markdown(
         color: {text_color};
     }}
     
-    /* Tiêu đề chính */
+    /* Ép toàn bộ các đoạn văn bản, tiêu đề hiển thị rõ */
+    p, span, label, div, markdown {{
+        color: {text_color};
+    }}
+
     h1, h2, h3 {{
         color: {heading_color} !important;
     }}
@@ -72,8 +79,7 @@ st.markdown(
         background: {card_bg};
         border: 1px solid {border_color} !important;
         border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }}
 
     /* Tùy chỉnh riêng cho Thanh Sidebar */
@@ -82,7 +88,6 @@ st.markdown(
         border-right: 1px solid {border_color};
     }}
     
-    /* Ép màu chữ trong sidebar chuẩn theo từng chế độ sáng/tối */
     [data-testid="stSidebar"] span, 
     [data-testid="stSidebar"] p, 
     [data-testid="stSidebar"] div,
@@ -91,7 +96,7 @@ st.markdown(
         font-weight: 500;
     }}
 
-    /* Các nút bấm (Buttons) hiện đại */
+    /* Các nút bấm (Buttons) */
     .stButton > button {{
         background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
         color: #070a13 !important;
@@ -99,7 +104,6 @@ st.markdown(
         border: none;
         border-radius: 8px;
         box-shadow: 0 0 12px rgba(0, 242, 254, 0.3);
-        transition: all 0.3s ease;
     }}
     .stButton > button:hover {{
         opacity: 0.92;
@@ -107,12 +111,17 @@ st.markdown(
         transform: translateY(-2px);
     }}
 
-    /* Ô nhập liệu (Inputs & Selectbox) */
-    .stTextInput > div > div > input, .stSelectbox > div > div {{
+    /* Ô nhập liệu (Inputs & Selectbox) - Đảm bảo chữ nhập vào luôn nhìn thấy */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] {{
         background-color: {input_bg} !important;
-        color: {text_color} !important;
+        color: {input_text} !important;
         border: 1px solid {border_color} !important;
         border-radius: 8px;
+    }}
+    
+    /* Màu chữ bên trong ô input */
+    input {{
+        color: {input_text} !important;
     }}
 
     /* Khung cảnh báo / thông báo */
