@@ -61,12 +61,22 @@ if st.session_state.user_id:
     except:
         pass
 
-# Cấu hình menu điều hướng qua st.navigation (Định nghĩa sẵn các trang cho User và Admin)
+# Khai báo chính xác tên các file theo đúng thư mục pages/ của bạn
 pages_dict = {
-    "Tài Khoản & Nhiệm Vụ": [
-        st.Page("pages/1_Cai_Dat_Nick.py", title="Cấu Hình Nick", icon="⚙️"),
-        st.Page("pages/2_Kiem_Xu.py", title="Kiếm Xu", icon="💰"),
-        # Bạn có thể thêm các trang chức năng khác vào đây nếu có
+    "Chức Năng Chính": [
+        st.Page("pages/1_⚙️_Cau_Hinh_Nick.py", title="Cấu Hình Nick", icon="⚙️"),
+        st.Page("pages/2_💰_Kiem_Xu.py", title="Kiếm Xu", icon="💰"),
+        st.Page("pages/3_🚀_Tang_Tuong_Tac.py", title="Tăng Tương Tác", icon="🚀"),
+    ],
+    "Nhiệm Vụ Mạng Xã Hội": [
+        st.Page("pages/4_Job_TikTok.py", title="Job TikTok", icon="🎵"),
+        st.Page("pages/5_Job_FaceBook.py", title="Job Facebook", icon="📘"),
+        st.Page("pages/6_Job_Instagram.py", title="Job Instagram", icon="📷"),
+    ],
+    "Tiện Ích & Thống Kê": [
+        st.Page("pages/7_🎁_Diem_Danh.py", title="Điểm Danh Hàng Ngày", icon="🎁"),
+        st.Page("pages/8_📊_Quan_Ly_Va_Lich_Su....py", title="Lịch Sử & Quản Lý", icon="📊"),
+        st.Page("pages/9_👑_Bang_Xep_Hang.py", title="Bảng Xếp Hạng", icon="🏆"),
     ]
 }
 
