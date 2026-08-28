@@ -61,22 +61,21 @@ if st.session_state.user_id:
     except:
         pass
 
-# Cấu hình menu điều hướng qua st.navigation (CHỈ chứa các trang phụ/quản trị, KHÔNG đưa app.py vào đây)
-pages_dict = {}
+# Cấu hình menu điều hướng qua st.navigation (Định nghĩa sẵn các trang cho User và Admin)
+pages_dict = {
+    "Tài Khoản & Nhiệm Vụ": [
+        st.Page("pages/1_Cai_Dat_Nick.py", title="Cấu Hình Nick", icon="⚙️"),
+        st.Page("pages/2_Kiem_Xu.py", title="Kiếm Xu", icon="💰"),
+        # Bạn có thể thêm các trang chức năng khác vào đây nếu có
+    ]
+}
 
 if is_admin:
     pages_dict["Quản Trị Hệ Thống"] = [
         st.Page("pages/10_Quan_Tri_Admin.py", title="Khu Vực Admin", icon="👑")
     ]
 
-# Nếu bạn có các trang chức năng khác trong thư mục pages/, có thể cấu hình thêm vào đây:
-# pages_dict["Chức Năng"] = [
-#     st.Page("pages/1_Cai_Dat_Nick.py", title="Cấu Hình Nick", icon="⚙️"),
-#     st.Page("pages/2_Kiem_Xu.py", title="Kiếm Xu", icon="💰"),
-#     ...
-# ]
-
-pg = st.navigation(pages_dict) if pages_dict else None
+pg = st.navigation(pages_dict)
 
 # Giao diện chính của Trang Chủ
 st.title("🚀 Nền Tảng Tăng Tương Tác & Fl Chéo")
@@ -170,6 +169,5 @@ else:
         st.session_state.reg_step = 1
         st.rerun()
 
-# Kích hoạt điều hướng sidebar nếu có trang phụ
-if pg:
-    pg.run()
+# Chạy điều hướng Sidebar
+pg.run()
