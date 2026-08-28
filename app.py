@@ -8,61 +8,6 @@ from bson import ObjectId
 from pymongo import MongoClient
 import streamlit as st
 
-# ================= QUẢN LÝ ĐA NGÔN NGỮ (LANGUAGE SWITCHER) =================
-if "lang" not in st.session_state:
-  st.session_state.lang = "Tiếng Việt"
-
-with st.sidebar:
-  st.markdown("---")
-  st.markdown("### 🌐 Ngôn ngữ / Language")
-  st.session_state.lang = st.selectbox(
-      "Chọn ngôn ngữ:", ["Tiếng Việt", "English"], index=0
-  )
-
-# Từ điển nội dung cho 2 ngôn ngữ
-trans = {
-    "Tiếng Việt": {
-        "title": "🚀 Nền Tảng Tăng Tương Tác & Fl Chéo",
-        "subtitle": "Hệ thống trao đổi tương tác mạng xã hội uy tín, an toàn và nhanh chóng.",
-        "welcome": "Xin chào",
-        "coins": "Số dư hiện tại của bạn:",
-        "admin_notice": (
-            "Bạn đang đăng nhập bằng tài khoản Admin. Hãy nhìn sang thanh Sidebar"
-            " bên trái để truy cập khu vực quản trị."
-        ),
-        "quick_guide": "Hướng dẫn nhanh",
-        "guide_desc": (
-            "Hãy sử dụng thanh menu bên trái (Sidebar) để cấu hình tài khoản,"
-            " tạo chiến dịch hoặc nhận job kiếm xu."
-        ),
-        "logout": "Đăng Xuất Tài Khoản",
-        "login_title": "Đăng nhập vào hệ thống",
-    },
-    "English": {
-        "title": "🚀 Social Interaction & Cross-Follow Platform",
-        "subtitle": (
-            "Trusted, secure, and fast social media interaction exchange"
-            " system."
-        ),
-        "welcome": "Welcome",
-        "coins": "Your current balance:",
-        "admin_notice": (
-            "You are logged in as Admin. Check the left Sidebar to access the"
-            " admin area."
-        ),
-        "quick_guide": "Quick Guide",
-        "guide_desc": (
-            "Use the left menu (Sidebar) to configure your account, create"
-            " campaigns, or earn coins."
-        ),
-        "logout": "Log Out",
-        "login_title": "System Login",
-    },
-}
-
-# Lấy từ điển ngôn ngữ tương ứng đang được chọn
-t = trans[st.session_state.lang]
-
 st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
 
 
