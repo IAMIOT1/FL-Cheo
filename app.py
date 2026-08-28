@@ -10,6 +10,79 @@ import streamlit as st
 
 st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
 
+# ================= CUSTOM CSS: PHONG CÁCH ÁNH SÁNG XANH (NEON BLUE) =================
+st.markdown("""
+    <style>
+    /* Tổng thể nền ứng dụng */
+    .stApp {
+        background-color: #0b0f19;
+        color: #e2e8f0;
+    }
+    
+    /* Hiệu ứng phát sáng cho các tiêu đề chính */
+    h1, h2, h3 {
+        color: #00f2fe !important;
+        text-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+    }
+
+    /* Tùy chỉnh các khối container / card hiển thị */
+    div[data-testid="stVerticalBlock"] > div[style*="border"] {
+        background: rgba(17, 24, 39, 0.7);
+        border: 1px solid rgba(0, 242, 254, 0.2) !important;
+        border-radius: 12px;
+        box-shadow: 0 0 15px rgba(0, 242, 254, 0.05);
+        transition: all 0.3s ease;
+    }
+    div[data-testid="stVerticalBlock"] > div[style*="border"]:hover {
+        border-color: rgba(0, 242, 254, 0.6) !important;
+        box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+    }
+
+    /* Thanh Sidebar ánh sáng xanh */
+    [data-testid="stSidebar"] {
+        background-color: #070a13;
+        border-right: 1px solid rgba(0, 242, 254, 0.15);
+    }
+
+    /* Các nút bấm (Buttons) hiệu ứng Neon */
+    .stButton > button {
+        background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+        color: #070a13;
+        font-weight: 700;
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover {
+        opacity: 0.9;
+        box-shadow: 0 0 20px rgba(0, 242, 254, 0.7);
+        transform: translateY(-2px);
+    }
+
+    /* Ô nhập liệu (Inputs) */
+    .stTextInput > div > div > input, .stSelectbox > div > div {
+        background-color: #111827 !important;
+        color: #fff !important;
+        border: 1px solid rgba(0, 242, 254, 0.3) !important;
+        border-radius: 8px;
+    }
+    .stTextInput > div > div > input:focus {
+        border-color: #00f2fe !important;
+        box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+    }
+
+    /* Các khung thông báo (Success, Info, Warning) */
+    div.stAlert {
+        background-color: rgba(17, 24, 39, 0.9);
+        border: 1px solid rgba(0, 242, 254, 0.3);
+        color: #e2e8f0;
+        border-radius: 10px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
 EMAIL_SENDER = "toinguyen7126@gmail.com"
 EMAIL_PASSWORD = "japg eyvh ontl dliw"
