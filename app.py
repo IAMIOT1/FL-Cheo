@@ -61,7 +61,6 @@ if st.session_state.user_id:
     except:
         pass
 
-# Khai báo chính xác tên các file theo đúng thư mục pages/ của bạn
 pages_dict = {
     "Chức Năng Chính": [
         st.Page("pages/1_⚙️_Cau_Hinh_Nick.py", title="Cấu Hình Nick", icon="⚙️"),
@@ -75,7 +74,7 @@ pages_dict = {
     ],
     "Tiện Ích & Thống Kê": [
         st.Page("pages/7_🎁_Diem_Danh.py", title="Điểm Danh Hàng Ngày", icon="🎁"),
-        st.Page("pages/8_📊_Quan_Ly_Va_Lich_Su....py", title="Lịch Sử & Quản Lý", icon="📊"),
+        st.Page("pages/8_📊_Quan_Ly_Va_Lich_Su.py", title="Lịch Sử & Quản Lý", icon="📊"),
         st.Page("pages/9_👑_Bang_Xep_Hang.py", title="Bảng Xếp Hạng", icon="🏆"),
     ]
 }
@@ -179,5 +178,4 @@ else:
         st.session_state.reg_step = 1
         st.rerun()
 
-# Chạy điều hướng Sidebar
 pg.run()
