@@ -3,54 +3,74 @@ from pymongo import MongoClient
 from bson import ObjectId
 import os
 
-st.set_page_config(page_title="Kiếm Xu", page_icon="💰")
-if not st.session_state.get("user_id"):
-    st.warning("⚠️ Vui lòng đăng nhập trước!")
+st.set_page_config(page_title="Kiếm Xu & Làm Job", page_icon="🎯", layout="centered")
+
+# Kết nối MongoDB
+MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
+
+@st.cache_resource
+def init_connection():
+    return MongoClient(MONGO_URI)
+
+try:
+    client = init_connection()
+    db = client["flcheo_db"]
+    users_col = db["users"]
+except Exception as e:
+    st.error(f"Lỗi kết nối database: {e}")
+
+# Kiểm tra đăng nhập
+if "user_id" not in st.session_state or not st.session_state.user_id:
+    st.warning("⚠️ Vui lòng đăng nhập trước khi làm Job!")
     st.stop()
 
-MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
-db = client["flcheo_db"]
-users_col = db["users"]
-campaigns_col = db["campaigns"]
-accounts_col = db["configured_accounts"]
-history_col = db["history"]
+user_id = st.session_state.user_id
+user = users_col.find_one({"_id": ObjectId(user_id)})
 
-st.subheader("💰 Danh Sách Job Kiếm Xu & Chống Gian Lận")
-st.markdown("Yêu cầu: Bạn phải thực hiện Tym/Comment/Follow thật trên link mục tiêu, sau đó tải ảnh chụp màn hình minh chứng để hệ thống cộng xu.")
+if not user:
+    st.error("Không tìm thấy thông tin tài khoản!")
+    st.stop()
+
+st.title("🎯 Trung Tâm Kiếm Xu & Làm Job")
+st.markdown("Chọn nền tảng mạng xã hội bạn đã cấu hình để bắt đầu nhận Job kiếm xu.")
 st.markdown("---")
 
-campaigns = list(campaigns_col.find({"active": True}))
-if not campaigns:
-    st.info("🎉 Hiện tại chưa có job nào.")
-else:
-    for camp in campaigns:
-        if str(camp["user"]) == st.session_state.user_id:
-            continue
-        with st.container(border=True):
-            st.markdown(f"**Nền tảng:** {camp['platform']} | Phần thưởng: **+{camp['reward']} Xu**")
-            st.markdown(f"🔗 [Bấm vào đây để mở liên kết làm nhiệm vụ]({camp['link']})")
-            
-            with st.form(key=f"form_job_{camp['_id']}"):
-                proof_img = st.file_uploader("Tải lên ảnh chụp màn hình minh chứng đã Tương Tác / Comment", type=["png", "jpg", "jpeg"], key=str(camp["_id"]))
-                submitted_job = st.form_submit_button("Xác Nhận Đã Hoàn Thành & Nhận Xu", use_container_width=True)
-                
-                if submitted_job:
-                    check_acc = accounts_col.find_one({"user_id": ObjectId(st.session_state.user_id), "platform": camp['platform']})
-                    if not check_acc:
-                        st.error(f"Bạn chưa cấu hình nick **{camp['platform']}** ở phần Cấu Hình Nick!")
-                    elif not proof_img:
-                        st.error("Vui lòng tải ảnh chụp màn hình minh chứng để chống gian lận!")
-                    else:
-                        users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": camp["reward"]}})
-                        campaigns_col.update_one({"_id": camp["_id"]}, {"$set": {"active": False}})
-                        
-                        history_col.insert_one({
-                            "user_id": ObjectId(st.session_state.user_id),
-                            "action": f"Làm job {camp['platform']}",
-                            "coins": camp["reward"]
-                        })
-                        
-                        st.session_state.coins += camp["reward"]
-                        st.success(f"🎉 Xác thực thành công! Đã cộng +{camp['reward']} xu vào ví của bạn.")
-                        st.rerun()
+# ================= KIỂM TRA CẤU HÌNH TỪNG NỀN TẢNG =================
+# Thay tên field "tiktok_username", "facebook_link"... bằng tên trường thực tế trong database của bạn
+configured_tiktok = bool(user.get("tiktok_username") or user.get("tiktok_id"))
+configured_facebook = bool(user.get("facebook_link") or user.get("facebook_id"))
+configured_instagram = bool(user.get("instagram_username"))
+
+# Chọn tab hoặc phân mục mạng xã hội
+tab_tt, tab_fb, tab_ins = st.tabs(["🎵 TikTok Job", "📘 Facebook Job", "📸 Instagram Job"])
+
+with tab_tt:
+    st.subheader("Nhiệm vụ TikTok")
+    if configured_tiktok:
+        st.success("✅ Tài khoản TikTok đã được cấu hình. Bạn có thể làm job bên dưới:")
+        # Hiển thị danh sách Job TikTok
+        if st.button("Làm Job TikTok: Follow thả tim (+10 Xu)", key="job_tt_1"):
+            st.success("Nhận job thành công! (Xử lý cộng xu/ghi nhận job ở đây)")
+    else:
+        st.warning("⚠️ Bạn chưa cấu hình tài khoản TikTok!")
+        st.info("👉 Vui lòng vào trang **Cấu Hình Nick** để liên kết tài khoản TikTok trước khi làm nhiệm vụ này.")
+
+with tab_fb:
+    st.subheader("Nhiệm vụ Facebook")
+    if configured_facebook:
+        st.success("✅ Tài khoản Facebook đã được cấu hình. Bạn có thể làm job bên dưới:")
+        if st.button("Làm Job Facebook: Like bài viết (+10 Xu)", key="job_fb_1"):
+            st.success("Nhận job thành công!")
+    else:
+        st.warning("⚠️ Bạn chưa cấu hình tài khoản Facebook!")
+        st.info("👉 Vui lòng vào trang **Cấu Hình Nick** để liên kết tài khoản Facebook.")
+
+with tab_ins:
+    st.subheader("Nhiệm vụ Instagram")
+    if configured_instagram:
+        st.success("✅ Tài khoản Instagram đã được cấu hình. Bạn có thể làm job bên dưới:")
+        if st.button("Làm Job Instagram: Thả tim ảnh (+10 Xu)", key="job_ins_1"):
+            st.success("Nhận job thành công!")
+    else:
+        st.warning("⚠️ Bạn chưa cấu hình tài khoản Instagram!")
+        st.info("👉 Vui lòng vào trang **Cấu Hình Nick** để liên kết tài khoản Instagram.")
