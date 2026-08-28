@@ -52,9 +52,8 @@ else:
   sidebar_bg = "transparent"
   input_bg = "transparent"
 
-# ================= CSS ĐỘNG DỰA TRÊN THEME =================
-st.markdown(
-    f"""
+# ================= CSS ĐỘNG DỰA TRÊN THEME (ĐÃ FIX MÀU SIDEBAR) =================
+st.markdown(f"""
     <style>
     /* Tổng thể nền ứng dụng */
     .stApp {{
@@ -65,7 +64,6 @@ st.markdown(
     /* Tiêu đề */
     h1, h2, h3 {{
         color: {heading_color} !important;
-        text-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
     }}
 
     /* Khối container / card hiển thị */
@@ -77,10 +75,15 @@ st.markdown(
         transition: all 0.3s ease;
     }}
 
-    /* Thanh Sidebar */
+    /* Thanh Sidebar và chữ bên trong sidebar */
     [data-testid="stSidebar"] {{
         background-color: {sidebar_bg};
         border-right: 1px solid {border_color};
+    }}
+    
+    /* Ép màu chữ trong sidebar hiển thị rõ ràng theo nền */
+    [data-testid="stSidebar"] span, [data-testid="stSidebar"] p, [data-testid="stSidebar"] div {{
+        color: {text_color} !important;
     }}
 
     /* Các nút bấm (Buttons) */
@@ -115,9 +118,7 @@ st.markdown(
         border-radius: 10px;
     }}
     </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
