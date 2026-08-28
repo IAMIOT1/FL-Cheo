@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from bson import ObjectId
 from pymongo import MongoClient
@@ -41,7 +41,7 @@ def log_admin_action(admin_email, action_desc):
     except:
         pass
 
-# Xác thực quyền Admin từ database (ĐÃ SỬA LỖI LOGIC)
+# Xác thực quyền Admin từ database
 try:
     current_user = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
     if not current_user or current_user.get("role") != "admin":
@@ -55,10 +55,11 @@ except Exception as e:
 st.title("👑 Bảng Điều Khiển Quản Trị Hệ Thống (Admin Dashboard)")
 st.markdown("---")
 
-# ĐỊNH NGHĨA CÁC TAB
-tab_overview, tab_users, tab_notis = st.tabs([
+# ĐỊNH NGHĨA CÁC TAB (Thêm tab Biểu Đồ Tăng Trưởng)
+tab_overview, tab_users, tab_analytics, tab_notis = st.tabs([
     "📊 Tổng Quan", 
     "👥 Quản Lý Thành Viên", 
+    "📈 Tăng Trưởng",
     "📢 Gửi Thông Báo"
 ])
 
@@ -254,7 +255,71 @@ with tab_users:
                         st.rerun()
 
 
-# ================= TAB 3: GỬI THÔNG BÁO =================
+# ================= TAB 3: BIỂU ĐỒ TĂNG TRƯỞNG (ANALYTICS) =================
+with tab_analytics:
+    st.subheader("📈 Phân Tích & Biểu Đồ Tăng Trưởng Hệ Thống")
+    st.caption("Thống kê số lượng thành viên và chiến dịch mới tạo trong 7 ngày gần nhất.")
+
+    # Tạo danh sách 7 ngày qua để thống kê
+    import pandas as pd
+    
+    days_list = []
+    user_counts_by_day = []
+    campaign_counts_by_day = []
+
+    today = datetime.now().date()
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        d_str = d.strftime("%d/%m")
+        days_list.append(d_str)
+
+        # Lấy khoảng thời gian trong ngày đó
+        start_dt = datetime.combine(d, datetime.min.time())
+        end_dt = datetime.combine(d, datetime.max.time())
+
+        # Đếm user đăng ký (dựa theo ObjectId timestamp hoặc giả định field created_at nếu có, dùng _id sinh ra thời gian)
+        # Vì ObjectId chứa timestamp, ta có thể query theo _id hoặc nếu DB có created_at thì dùng created_at. 
+        # Ở đây ta minh họa đếm qua ObjectId nếu user có lưu _id dạng ObjectId chuẩn.
+        try:
+            # Lọc theo _id timestamp hoặc created_at nếu có
+            u_count = users_col.count_documents({
+                "_id": {
+                    "$gte": ObjectId.from_datetime(start_dt),
+                    "$lte": ObjectId.from_datetime(end_dt)
+                }
+            })
+        except:
+            u_count = 0 # Fallback nếu _id không phải dạng ObjectId chuẩn
+
+        try:
+            c_count = campaigns_col.count_documents({
+                "created_at": {"$gte": start_dt, "$lte": end_dt}
+            }) if 'campaigns_col' in globals() else 0
+        except:
+            c_count = 0
+
+        user_counts_by_day.append(u_count)
+        campaign_counts_by_day.append(c_count)
+
+    # Đưa vào DataFrame để vẽ biểu đồ Streamlit
+    chart_data = pd.DataFrame({
+        "Ngày": days_list,
+        "Thành Viên Mới": user_counts_by_day,
+        "Chiến Dịch Mới": campaign_counts_by_day
+    })
+    chart_data.set_index("Ngày", inplace=True)
+
+    st.markdown("##### 📊 Biểu đồ số lượng Thành viên & Chiến dịch mới (7 ngày qua)")
+    st.line_chart(chart_data)
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.metric(label="👥 Tổng User Mới (7 ngày)", value=sum(user_counts_by_day))
+    with col_b:
+        st.metric(label="🚀 Tổng Chiến Dịch Mới (7 ngày)", value=sum(campaign_counts_by_day))
+
+
+# ================= TAB 4: GỬI THÔNG BÁO =================
 with tab_notis:
     st.subheader("📢 Đăng Thông Báo Hệ Thống (Broadcast)")
     st.markdown("Thông báo mới nhất sẽ xuất hiện trực tiếp ngay trang chủ khi người dùng truy cập.")
