@@ -3,12 +3,11 @@ from pymongo import MongoClient
 from bson import ObjectId
 import os
 import random
-import time
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-st.set_page_config(page_title="Web Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
+st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
 
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
 EMAIL_SENDER = "toinguyen7126@gmail.com"
@@ -49,19 +48,16 @@ if "username" not in st.session_state:
     st.session_state.username = None
 if "coins" not in st.session_state:
     st.session_state.coins = 0
-
 if "reg_step" not in st.session_state:
     st.session_state.reg_step = 1
 
-# --- PHÂN QUYỀN TRANG BẰNG st.navigation ---
-# Định nghĩa trang chủ (ai cũng thấy)
+# Cấu hình menu điều hướng qua st.navigation
 pages_dict = {
     "Trang Chủ": [
         st.Page("app.py", title="Trang Chủ", icon="🏠")
     ]
 }
 
-# Kiểm tra xem user hiện tại có phải là admin không để add thêm trang quản trị vào menu
 is_admin = False
 if st.session_state.user_id:
     try:
@@ -78,87 +74,95 @@ if is_admin:
 
 pg = st.navigation(pages_dict)
 
-# --- GIAO DIỆN CHÍNH CỦA APP.PY ---
 st.title("🚀 Nền Tảng Tăng Tương Tác & Fl Chéo")
+st.markdown("Hệ thống trao đổi tương tác mạng xã hội uy tín, an toàn và nhanh chóng.")
 st.markdown("---")
 
 if not st.session_state.user_id:
-    tab1, tab2 = st.tabs(["Đăng Nhập", "Đăng Ký"])
+    tab1, tab2 = st.tabs(["🔑 Đăng Nhập", "✨ Đăng Ký Tài Khoản"])
+    
     with tab1:
-        st.subheader("Đăng nhập tài khoản")
-        login_input = st.text_input("Tên đăng nhập hoặc Email", key="login_input")
-        login_password = st.text_input("Mật khẩu", type="password", key="login_password")
-        
-        if st.button("Đăng Nhập"):
-            user = users_col.find_one({"$or": [{"username": login_input}, {"email": login_input}]})
-            if user and user.get("password") == login_password:
-                st.session_state.user_id = str(user["_id"])
-                st.session_state.username = user["username"]
-                st.session_state.coins = user.get("coins", 100)
-                st.success("Đăng nhập thành công!")
-                st.rerun()
-            else:
-                st.error("Tài khoản, Email hoặc Mật khẩu không chính xác!")
-
-    with tab2:
-        st.subheader("Tạo tài khoản mới (Tặng ngay 100 xu)")
-        if st.session_state.reg_step == 1:
-            reg_user = st.text_input("Tên đăng nhập mới", key="reg_user")
-            reg_email = st.text_input("Địa chỉ Email", key="reg_email")
-            reg_pass = st.text_input("Mật khẩu", type="password", key="reg_pass")
+        st.markdown("### Đăng nhập vào hệ thống")
+        with st.form("login_form"):
+            login_input = st.text_input("Tên đăng nhập hoặc Email")
+            login_password = st.text_input("Mật khẩu", type="password")
+            submitted_login = st.form_submit_button("Đăng Nhập Ngay", use_container_width=True)
             
-            if st.button("Gửi Mã Xác Thực (PIN)"):
-                if not reg_user or not reg_email or not reg_pass:
-                    st.warning("Vui lòng điền đầy đủ thông tin!")
-                elif users_col.find_one({"email": reg_email}):
-                    st.error("Email đã được sử dụng!")
-                else:
-                    pin = str(random.randint(100000, 999999))
-                    success, msg = send_email_pin(reg_email, pin)
-                    if success:
-                        st.session_state.generated_pin = pin
-                        st.session_state.temp_username = reg_user
-                        st.session_state.temp_email = reg_email
-                        st.session_state.temp_password = reg_pass
-                        st.session_state.reg_step = 2
-                        st.success("Đã gửi mã PIN tới email!")
-                        st.rerun()
-                    else:
-                        st.error(msg)
-        elif st.session_state.reg_step == 2:
-            entered_pin = st.text_input("Nhập mã PIN 6 số từ email", type="password")
-            if st.button("Xác Nhận Đăng Ký"):
-                if entered_pin == st.session_state.generated_pin:
-                    res = users_col.insert_one({
-                        "username": st.session_state.temp_username,
-                        "email": st.session_state.temp_email,
-                        "password": st.session_state.temp_password,
-                        "coins": 100,
-                        "role": "user"
-                    })
-                    st.session_state.user_id = str(res.inserted_id)
-                    st.session_state.username = st.session_state.temp_username
-                    st.session_state.coins = 100
-                    st.session_state.reg_step = 1
-                    st.success("Đăng ký thành công!")
+            if submitted_login:
+                user = users_col.find_one({"$or": [{"username": login_input}, {"email": login_input}]})
+                if user and user.get("password") == login_password:
+                    st.session_state.user_id = str(user["_id"])
+                    st.session_state.username = user["username"]
+                    st.session_state.coins = user.get("coins", 100)
+                    st.success("Đăng nhập thành công!")
                     st.rerun()
                 else:
-                    st.error("Mã PIN không chính xác!")
+                    st.error("Tài khoản, Email hoặc Mật khẩu không chính xác!")
+
+    with tab2:
+        st.markdown("### Tạo tài khoản mới (Tặng ngay 100 Xu khởi nghiệp)")
+        if st.session_state.reg_step == 1:
+            with st.form("reg_step1_form"):
+                reg_user = st.text_input("Tên đăng nhập mới")
+                reg_email = st.text_input("Địa chỉ Email")
+                reg_pass = st.text_input("Mật khẩu", type="password")
+                submitted_reg = st.form_submit_button("Gửi Mã Xác Thực (PIN)", use_container_width=True)
+                
+                if submitted_reg:
+                    if not reg_user or not reg_email or not reg_pass:
+                        st.warning("Vui lòng điền đầy đủ thông tin!")
+                    elif users_col.find_one({"email": reg_email}):
+                        st.error("Email này đã được sử dụng bởi tài khoản khác!")
+                    else:
+                        pin = str(random.randint(100000, 999999))
+                        success, msg = send_email_pin(reg_email, pin)
+                        if success:
+                            st.session_state.generated_pin = pin
+                            st.session_state.temp_username = reg_user
+                            st.session_state.temp_email = reg_email
+                            st.session_state.temp_password = reg_pass
+                            st.session_state.reg_step = 2
+                            st.success("Đã gửi mã PIN 6 số tới email của bạn!")
+                            st.rerun()
+                        else:
+                            st.error(msg)
+                            
+        elif st.session_state.reg_step == 2:
+            with st.form("reg_step2_form"):
+                entered_pin = st.text_input("Nhập mã PIN 6 số từ email", type="password")
+                submitted_verify = st.form_submit_button("Xác Nhận Đăng Ký", use_container_width=True)
+                
+                if submitted_verify:
+                    if entered_pin == st.session_state.generated_pin:
+                        res = users_col.insert_one({
+                            "username": st.session_state.temp_username,
+                            "email": st.session_state.temp_email,
+                            "password": st.session_state.temp_password,
+                            "coins": 100,
+                            "role": "user"
+                        })
+                        st.session_state.user_id = str(res.inserted_id)
+                        st.session_state.username = st.session_state.temp_username
+                        st.session_state.coins = 100
+                        st.session_state.reg_step = 1
+                        st.success("Đăng ký thành công tài khoản!")
+                        st.rerun()
+                    else:
+                        st.error("Mã PIN không chính xác!")
 else:
-    st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại: **{st.session_state.coins} Xu**.")
+    st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại của bạn: **{st.session_state.coins:,} 🪙 Xu**.")
     
     if is_admin:
-        st.markdown("---")
-        st.info("👑 Bạn đang đăng nhập bằng tài khoản **Admin**. Hãy nhìn sang **thanh Sidebar bên trái**, mục **Quản Trị Hệ Thống** đã xuất hiện để bạn có thể bấm vào truy cập trực tiếp!")
+        st.info("👑 Bạn đang đăng nhập bằng tài khoản **Admin**. Hãy nhìn sang thanh Sidebar bên trái để truy cập khu vực quản trị.")
 
-    st.markdown("---")
+    st.markdown("### 💡 Hướng dẫn nhanh")
+    st.info("👉 Hãy sử dụng thanh menu bên trái (Sidebar) để cấu hình tài khoản, tạo chiến dịch hoặc nhận job kiếm xu.")
     
-    if st.button("Đăng Xuất"):
+    if st.button("Đăng Xuất Tài Khoản", type="secondary", use_container_width=True):
         st.session_state.user_id = None
         st.session_state.username = None
         st.session_state.coins = 0
         st.session_state.reg_step = 1
         st.rerun()
 
-# Thực thi điều hướng trang của Streamlit
 pg.run()

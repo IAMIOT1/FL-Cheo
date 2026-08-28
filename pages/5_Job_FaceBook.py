@@ -5,7 +5,7 @@ import os
 
 st.set_page_config(page_title="Job Facebook", page_icon="📘")
 if not st.session_state.get("user_id"):
-    st.warning("Vui lòng đăng nhập trước!")
+    st.warning("⚠️ Vui lòng đăng nhập trước!")
     st.stop()
 
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
@@ -18,12 +18,8 @@ history_col = db["job_history"]
 st.subheader("📘 Kho Nhiệm Vụ Facebook Kiếm Xu")
 st.markdown("---")
 
-# Các Tab phân loại nhiệm vụ Facebook
 tab_like, tab_follow, tab_comment, tab_share = st.tabs([
-    "❤️ Thả Tim / Like", 
-    "➕ Theo Dõi / Sub", 
-    "💬 Bình Luận", 
-    "🔄 Chia Sẻ"
+    "❤️ Thả Tim / Like", "➕ Theo Dõi / Sub", "💬 Bình Luận", "🔄 Chia Sẻ"
 ])
 
 def render_fb_jobs(action_filter_keywords):
@@ -47,26 +43,19 @@ def render_fb_jobs(action_filter_keywords):
     for camp in campaigns:
         action_type = camp.get('action_type', '')
         
-        with st.container():
+        with st.container(border=True):
             st.markdown(f"### 📌 {action_type} Facebook")
             st.markdown(f"🔗 **Link mục tiêu:** [Bấm vào đây để mở liên kết]({camp['link']})")
             
             col1, col2 = st.columns(2)
             with col1:
-                st.text(f"💰 Phần thưởng: +{camp['reward']} Xu")
+                st.markdown(f"💰 Phần thưởng: **+{camp['reward']} Xu**")
             with col2:
-                st.text(f"⏳ Còn lại: {camp.get('remaining', 1)} lượt")
+                st.markdown(f"⏳ Còn lại: **{camp.get('remaining', 1)} lượt**")
             
-            if st.button(f"Xác Nhận Đã Hoàn Thành (+{camp['reward']} Xu)", key=str(camp["_id"])):
-                users_col.update_one(
-                    {"_id": ObjectId(st.session_state.user_id)}, 
-                    {"$inc": {"coins": camp["reward"]}}
-                )
-                
-                history_col.insert_one({
-                    "user_id": ObjectId(st.session_state.user_id),
-                    "campaign_id": camp["_id"]
-                })
+            if st.button(f"Xác Nhận Đã Hoàn Thành (+{camp['reward']} Xu)", key=str(camp["_id"]), use_container_width=True):
+                users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": camp["reward"]}})
+                history_col.insert_one({"user_id": ObjectId(st.session_state.user_id), "campaign_id": camp["_id"]})
                 
                 new_remaining = camp.get('remaining', 1) - 1
                 update_data = {"remaining": new_remaining}
@@ -78,17 +67,8 @@ def render_fb_jobs(action_filter_keywords):
                 st.session_state.coins += camp["reward"]
                 st.success(f"✅ Hoàn thành! Đã cộng +{camp['reward']} xu.")
                 st.rerun()
-                
-            st.markdown("---")
 
-with tab_like:
-    render_fb_jobs(["Thả tim (Tym)", "Thả tim", "Tym", "Like", "Thích bài viết"])
-
-with tab_follow:
-    render_fb_jobs(["Theo dõi (Follow)", "Theo dõi", "Follow", "Sub", "Kết bạn"])
-
-with tab_comment:
-    render_fb_jobs(["Bình luận (Comment)", "Bình luận", "Comment"])
-
-with tab_share:
-    render_fb_jobs(["Chia sẻ (Share)", "Share", "Chia sẻ bài viết"])
+with tab_like: render_fb_jobs(["Thả tim (Tym)", "Thả tim", "Tym", "Like", "Thích bài viết"])
+with tab_follow: render_fb_jobs(["Theo dõi (Follow)", "Theo dõi", "Follow", "Sub", "Kết bạn"])
+with tab_comment: render_fb_jobs(["Bình luận (Comment)", "Bình luận", "Comment"])
+with tab_share: render_fb_jobs(["Chia sẻ (Share)", "Share", "Chia sẻ bài viết"])

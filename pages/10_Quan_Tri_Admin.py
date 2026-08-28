@@ -15,7 +15,6 @@ db = client["flcheo_db"]
 users_col = db["users"]
 campaigns_col = db["campaigns"]
 
-# Chặn tuyệt đối nếu không phải admin
 current_user = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
 if not current_user or current_user.get("role") != "admin":
     st.error("⛔ CẢNH BÁO: Bạn không có quyền truy cập trang quản trị của Admin!")
@@ -25,9 +24,7 @@ st.subheader("👑 Bảng Điều Khiển Quản Trị Hệ Thống (Admin Dashb
 st.markdown("---")
 
 tab_users, tab_campaigns, tab_stats = st.tabs([
-    "👥 Quản Lý Người Dùng", 
-    "🚀 Quản Lý Chiến Dịch", 
-    "📊 Thống Kê Hệ Thống"
+    "👥 Quản Lý Người Dùng", "🚀 Quản Lý Chiến Dịch", "📊 Thống Kê Hệ Thống"
 ])
 
 with tab_users:
@@ -35,27 +32,27 @@ with tab_users:
     all_users = list(users_col.find({}))
     
     for u in all_users:
-        col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
-        with col1:
-            st.write(f"**Email:** {u.get('email')}")
-        with col2:
-            st.write(f"💰 **Số dư:** {u.get('coins', 0)} Xu")
-        with col3:
-            role = u.get('role', 'user')
-            st.write(f"🛡️ **Quyền:** `{role}`")
-        with col4:
-            if str(u["_id"]) != st.session_state.user_id:
-                if role == "admin":
-                    if st.button("Hạ quyền User", key=f"demote_{u['_id']}"):
-                        users_col.update_one({"_id": u["_id"]}, {"$set": {"role": "user"}})
-                        st.success("Đã hạ quyền!")
-                        st.rerun()
-                else:
-                    if st.button("Lên quyền Admin", key=f"promote_{u['_id']}"):
-                        users_col.update_one({"_id": u["_id"]}, {"$set": {"role": "admin"}})
-                        st.success("Đã lên quyền Admin!")
-                        st.rerun()
-        st.markdown("---")
+        with st.container(border=True):
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
+            with col1:
+                st.write(f"**Email:** {u.get('email')}")
+            with col2:
+                st.write(f"💰 **Số dư:** {u.get('coins', 0):,} Xu")
+            with col3:
+                role = u.get('role', 'user')
+                st.write(f"🛡️ **Quyền:** `{role}`")
+            with col4:
+                if str(u["_id"]) != st.session_state.user_id:
+                    if role == "admin":
+                        if st.button("Hạ quyền User", key=f"demote_{u['_id']}", use_container_width=True):
+                            users_col.update_one({"_id": u["_id"]}, {"$set": {"role": "user"}})
+                            st.success("Đã hạ quyền!")
+                            st.rerun()
+                    else:
+                        if st.button("Lên quyền Admin", key=f"promote_{u['_id']}", use_container_width=True):
+                            users_col.update_one({"_id": u["_id"]}, {"$set": {"role": "admin"}})
+                            st.success("Đã lên quyền Admin!")
+                            st.rerun()
 
 with tab_campaigns:
     st.markdown("### 🚀 Toàn bộ chiến dịch")
@@ -68,16 +65,15 @@ with tab_campaigns:
             owner = users_col.find_one({"_id": camp.get("user")})
             owner_email = owner.get("email") if owner else "Không rõ"
             
-            with st.container():
+            with st.container(border=True):
                 st.markdown(f"**Nền tảng:** {camp.get('platform')} | **Loại:** {camp.get('action_type')}")
                 st.markdown(f"🔗 Link: [Mở liên kết]({camp.get('link')})")
                 st.text(f"👤 Chủ sở hữu: {owner_email} | 💰 Thưởng: {camp.get('reward')} Xu | ⏳ Còn lại: {camp.get('remaining')} lượt")
                 
-                if st.button("🗑️ Xóa chiến dịch", key=f"del_camp_{camp['_id']}"):
+                if st.button("🗑️ Xóa chiến dịch", key=f"del_camp_{camp['_id']}", use_container_width=True):
                     campaigns_col.delete_one({"_id": camp["_id"]})
                     st.warning("Đã xóa!")
                     st.rerun()
-                st.markdown("---")
 
 with tab_stats:
     st.markdown("### 📊 Thống kê")
