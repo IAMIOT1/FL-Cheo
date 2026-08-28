@@ -8,133 +8,62 @@ from bson import ObjectId
 from pymongo import MongoClient
 import streamlit as st
 
-st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
-
-# ================= QUẢN LÝ GIAO DIỆN THÔNG MINH (DARK / LIGHT THEME) =================
-if "theme_mode" not in st.session_state:
-  st.session_state.theme_mode = "Tối (Neon Blue)"
+# ================= QUẢN LÝ ĐA NGÔN NGỮ (LANGUAGE SWITCHER) =================
+if "lang" not in st.session_state:
+  st.session_state.lang = "Tiếng Việt"
 
 with st.sidebar:
   st.markdown("---")
-  st.markdown("### 🎨 Cài Đặt Giao Diện")
-  st.session_state.theme_mode = st.selectbox(
-      "Chọn chế độ hiển thị:",
-      ["Tối (Neon Blue)", "Sáng (Light Mode)", "Theo hệ thống (Auto)"],
-      index=0,
+  st.markdown("### 🌐 Ngôn ngữ / Language")
+  st.session_state.lang = st.selectbox(
+      "Chọn ngôn ngữ:", ["Tiếng Việt", "English"], index=0
   )
 
-# Thiết lập màu sắc chuẩn mực cho từng chế độ
-if st.session_state.theme_mode == "Sáng (Light Mode)":
-  bg_color = "#f8fafc"
-  card_bg = "#ffffff"
-  text_color = "#0f172a"  # Chữ cực kỳ đậm và rõ
-  heading_color = "#0284c7"
-  border_color = "rgba(2, 132, 199, 0.25)"
-  sidebar_bg = "#f1f5f9"
-  sidebar_text = "#0f172a"
-  input_bg = "#ffffff"
-  input_text = "#0f172a"
-elif st.session_state.theme_mode == "Tối (Neon Blue)":
-  bg_color = "#0b0f19"
-  card_bg = "rgba(17, 24, 39, 0.75)"
-  text_color = "#e2e8f0"
-  heading_color = "#00f2fe"
-  border_color = "rgba(0, 242, 254, 0.25)"
-  sidebar_bg = "#070a13"
-  sidebar_text = "#f8fafc"
-  input_bg = "#111827"
-  input_text = "#ffffff"
-else:
-  bg_color = "transparent"
-  card_bg = "transparent"
-  text_color = "inherit"
-  heading_color = "inherit"
-  border_color = "rgba(128, 128, 128, 0.2)"
-  sidebar_bg = "transparent"
-  sidebar_text = "inherit"
-  input_bg = "transparent"
-  input_text = "inherit"
+# Từ điển nội dung cho 2 ngôn ngữ
+trans = {
+    "Tiếng Việt": {
+        "title": "🚀 Nền Tảng Tăng Tương Tác & Fl Chéo",
+        "subtitle": "Hệ thống trao đổi tương tác mạng xã hội uy tín, an toàn và nhanh chóng.",
+        "welcome": "Xin chào",
+        "coins": "Số dư hiện tại của bạn:",
+        "admin_notice": (
+            "Bạn đang đăng nhập bằng tài khoản Admin. Hãy nhìn sang thanh Sidebar"
+            " bên trái để truy cập khu vực quản trị."
+        ),
+        "quick_guide": "Hướng dẫn nhanh",
+        "guide_desc": (
+            "Hãy sử dụng thanh menu bên trái (Sidebar) để cấu hình tài khoản,"
+            " tạo chiến dịch hoặc nhận job kiếm xu."
+        ),
+        "logout": "Đăng Xuất Tài Khoản",
+        "login_title": "Đăng nhập vào hệ thống",
+    },
+    "English": {
+        "title": "🚀 Social Interaction & Cross-Follow Platform",
+        "subtitle": (
+            "Trusted, secure, and fast social media interaction exchange"
+            " system."
+        ),
+        "welcome": "Welcome",
+        "coins": "Your current balance:",
+        "admin_notice": (
+            "You are logged in as Admin. Check the left Sidebar to access the"
+            " admin area."
+        ),
+        "quick_guide": "Quick Guide",
+        "guide_desc": (
+            "Use the left menu (Sidebar) to configure your account, create"
+            " campaigns, or earn coins."
+        ),
+        "logout": "Log Out",
+        "login_title": "System Login",
+    },
+}
 
-# ================= CSS HOÀN THIỆN ĐỂ KHÔNG BAO GIỜ BỊ MẤT CHỮ =================
-st.markdown(
-    f"""
-    <style>
-    /* Tổng thể ứng dụng */
-    .stApp {{
-        background-color: {bg_color};
-        color: {text_color};
-    }}
-    
-    /* Ép toàn bộ các đoạn văn bản, tiêu đề hiển thị rõ */
-    p, span, label, div, markdown {{
-        color: {text_color};
-    }}
+# Lấy từ điển ngôn ngữ tương ứng đang được chọn
+t = trans[st.session_state.lang]
 
-    h1, h2, h3 {{
-        color: {heading_color} !important;
-    }}
-
-    /* Các khối chứa thông tin (Cards) */
-    div[data-testid="stVerticalBlock"] > div[style*="border"] {{
-        background: {card_bg};
-        border: 1px solid {border_color} !important;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }}
-
-    /* Tùy chỉnh riêng cho Thanh Sidebar */
-    [data-testid="stSidebar"] {{
-        background-color: {sidebar_bg};
-        border-right: 1px solid {border_color};
-    }}
-    
-    [data-testid="stSidebar"] span, 
-    [data-testid="stSidebar"] p, 
-    [data-testid="stSidebar"] div,
-    [data-testid="stSidebar"] label {{
-        color: {sidebar_text} !important;
-        font-weight: 500;
-    }}
-
-    /* Các nút bấm (Buttons) */
-    .stButton > button {{
-        background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-        color: #070a13 !important;
-        font-weight: 700;
-        border: none;
-        border-radius: 8px;
-        box-shadow: 0 0 12px rgba(0, 242, 254, 0.3);
-    }}
-    .stButton > button:hover {{
-        opacity: 0.92;
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.6);
-        transform: translateY(-2px);
-    }}
-
-    /* Ô nhập liệu (Inputs & Selectbox) - Đảm bảo chữ nhập vào luôn nhìn thấy */
-    .stTextInput input, .stSelectbox div[data-baseweb="select"] {{
-        background-color: {input_bg} !important;
-        color: {input_text} !important;
-        border: 1px solid {border_color} !important;
-        border-radius: 8px;
-    }}
-    
-    /* Màu chữ bên trong ô input */
-    input {{
-        color: {input_text} !important;
-    }}
-
-    /* Khung cảnh báo / thông báo */
-    div.stAlert {{
-        background-color: {card_bg};
-        border: 1px solid {border_color};
-        color: {text_color};
-        border-radius: 10px;
-    }}
-    </style>
-""",
-    unsafe_allow_html=True,
-)
+st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
 
 
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
