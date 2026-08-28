@@ -10,7 +10,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
 
-# ================= QUẢN LÝ TRẠNG THÁI GIAO DIỆN (THEME SWITCHER) =================
+# ================= QUẢN LÝ GIAO DIỆN THÔNG MINH (DARK / LIGHT THEME) =================
 if "theme_mode" not in st.session_state:
   st.session_state.theme_mode = "Tối (Neon Blue)"
 
@@ -23,73 +23,78 @@ with st.sidebar:
       index=0,
   )
 
-# Thiết lập mã màu động dựa theo lựa chọn
+# Thiết lập màu sắc chi tiết cho từng chế độ để đảm bảo độ tương phản và thẩm mỹ cao nhất
 if st.session_state.theme_mode == "Sáng (Light Mode)":
-  # Cấu hình màu sắc nền sáng, chữ tối
   bg_color = "#f8fafc"
   card_bg = "#ffffff"
-  text_color = "#0f172a"
-  heading_color = "#0284c7"
+  text_color = "#1e293b"  # Màu chữ tối (Xám đậm/Xanh đen) cực kỳ sắc nét
+  heading_color = "#0284c7"  # Xanh dương đậm chủ đạo
   border_color = "rgba(2, 132, 199, 0.2)"
   sidebar_bg = "#f1f5f9"
+  sidebar_text = "#0f172a"
   input_bg = "#ffffff"
 elif st.session_state.theme_mode == "Tối (Neon Blue)":
-  # Cấu hình màu sắc nền tối, xanh neon
   bg_color = "#0b0f19"
-  card_bg = "rgba(17, 24, 39, 0.7)"
-  text_color = "#e2e8f0"
-  heading_color = "#00f2fe"
-  border_color = "rgba(0, 242, 254, 0.2)"
+  card_bg = "rgba(17, 24, 39, 0.75)"
+  text_color = "#e2e8f0"  # Màu chữ sáng (Trắng khói) dễ chịu cho mắt
+  heading_color = "#00f2fe"  # Xanh neon rực rỡ
+  border_color = "rgba(0, 242, 254, 0.25)"
   sidebar_bg = "#070a13"
+  sidebar_text = "#f8fafc"
   input_bg = "#111827"
 else:
-  # Chế độ "Theo hệ thống" (Mặc định của Streamlit)
   bg_color = "transparent"
   card_bg = "transparent"
   text_color = "inherit"
   heading_color = "inherit"
   border_color = "rgba(128, 128, 128, 0.2)"
   sidebar_bg = "transparent"
+  sidebar_text = "inherit"
   input_bg = "transparent"
 
-# ================= CSS ĐỘNG DỰA TRÊN THEME (ĐÃ FIX MÀU SIDEBAR) =================
-st.markdown(f"""
+# ================= CSS HOÀN THIỆN ĐỘ THẨM MỸ =================
+st.markdown(
+    f"""
     <style>
-    /* Tổng thể nền ứng dụng */
+    /* Tổng thể ứng dụng */
     .stApp {{
         background-color: {bg_color};
         color: {text_color};
     }}
     
-    /* Tiêu đề */
+    /* Tiêu đề chính */
     h1, h2, h3 {{
         color: {heading_color} !important;
     }}
 
-    /* Khối container / card hiển thị */
+    /* Các khối chứa thông tin (Cards) */
     div[data-testid="stVerticalBlock"] > div[style*="border"] {{
         background: {card_bg};
         border: 1px solid {border_color} !important;
         border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
         transition: all 0.3s ease;
     }}
 
-    /* Thanh Sidebar và chữ bên trong sidebar */
+    /* Tùy chỉnh riêng cho Thanh Sidebar */
     [data-testid="stSidebar"] {{
         background-color: {sidebar_bg};
         border-right: 1px solid {border_color};
     }}
     
-    /* Ép màu chữ trong sidebar hiển thị rõ ràng theo nền */
-    [data-testid="stSidebar"] span, [data-testid="stSidebar"] p, [data-testid="stSidebar"] div {{
-        color: {text_color} !important;
+    /* Ép màu chữ trong sidebar chuẩn theo từng chế độ sáng/tối */
+    [data-testid="stSidebar"] span, 
+    [data-testid="stSidebar"] p, 
+    [data-testid="stSidebar"] div,
+    [data-testid="stSidebar"] label {{
+        color: {sidebar_text} !important;
+        font-weight: 500;
     }}
 
-    /* Các nút bấm (Buttons) */
+    /* Các nút bấm (Buttons) hiện đại */
     .stButton > button {{
         background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-        color: #070a13;
+        color: #070a13 !important;
         font-weight: 700;
         border: none;
         border-radius: 8px;
@@ -97,12 +102,12 @@ st.markdown(f"""
         transition: all 0.3s ease;
     }}
     .stButton > button:hover {{
-        opacity: 0.9;
+        opacity: 0.92;
         box-shadow: 0 0 20px rgba(0, 242, 254, 0.6);
         transform: translateY(-2px);
     }}
 
-    /* Ô nhập liệu (Inputs) */
+    /* Ô nhập liệu (Inputs & Selectbox) */
     .stTextInput > div > div > input, .stSelectbox > div > div {{
         background-color: {input_bg} !important;
         color: {text_color} !important;
@@ -110,7 +115,7 @@ st.markdown(f"""
         border-radius: 8px;
     }}
 
-    /* Khung thông báo */
+    /* Khung cảnh báo / thông báo */
     div.stAlert {{
         background-color: {card_bg};
         border: 1px solid {border_color};
@@ -118,7 +123,9 @@ st.markdown(f"""
         border-radius: 10px;
     }}
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
