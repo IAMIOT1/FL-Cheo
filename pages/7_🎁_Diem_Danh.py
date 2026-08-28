@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from bson import ObjectId
 from pymongo import MongoClient
@@ -9,11 +9,9 @@ st.set_page_config(page_title="Điểm Danh & Nhận Thưởng", page_icon="🎁
 # Kết nối MongoDB
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
 
-
 @st.cache_resource
 def init_connection():
     return MongoClient(MONGO_URI)
-
 
 try:
     client = init_connection()
@@ -27,7 +25,6 @@ if "user_id" not in st.session_state or not st.session_state.user_id:
     st.warning("⚠️ Vui lòng đăng nhập ở trang chính (Trang Chủ) trước khi sử dụng tính năng này!")
     st.stop()
 
-# Lấy thông tin user mới nhất từ DB
 user_id = st.session_state.user_id
 user = users_col.find_one({"_id": ObjectId(user_id)})
 
@@ -40,39 +37,52 @@ st.markdown("Điểm danh mỗi ngày, duy trì chuỗi 7 ngày và hoàn thành
 st.markdown("---")
 
 # Lấy ngày hiện tại chuẩn định dạng YYYY-MM-DD
-today_str = datetime.now().strftime("%Y-%m-%d")
+today_dt = datetime.now()
+today_str = today_dt.strftime("%Y-%m-%d")
 history_checkins = user.get("check_in", {}).get("check_in_history", [])
 
-# Kiểm tra xem hôm nay đã điểm danh chưa
 checked_today = today_str in history_checkins
 
-# ================= PHẦN 1: ĐIỂM DANH 7 NGÀY LẶP LẠI =================
+# ================= PHẦN 1: ĐIỂM DANH 7 NGÀY (HIỂN THỊ NGÀY THÁNG THỰC TẾ) =================
 st.subheader("📅 Bảng Điểm Danh Chu Kỳ 7 Ngày")
 st.markdown("Mỗi ngày điểm danh nhận **+10 Xu**. Hoàn thành chu kỳ 7 ngày liên tiếp để nhận thưởng lớn!")
 
-current_streak = len(history_checkins) % 7
-if current_streak == 0 and checked_today:
-    current_streak = 7
+# Xác định mốc bắt đầu của chu kỳ 7 ngày hiện tại dựa trên số lần đã điểm danh
+total_checkins = len(history_checkins)
+cycle_index = total_checkins // 7
+start_of_cycle = today_dt - timedelta(days=(total_checkins % 7))
+if checked_today and total_checkins > 0:
+    # Nếu hôm nay đã điểm danh, lùi lại để tính đúng mốc bắt đầu chu kỳ
+    pass
+
+# Tạo danh sách 7 ngày thực tế cho chu kỳ này
+cycle_dates = [today_dt - timedelta(days=(total_checkins % 7) - i) for i in range(7)]
 
 cols = st.columns(7)
-for i in range(1, 8):
-    with cols[i - 1]:
-        is_received = i < current_streak or (i == current_streak and checked_today)
-
+for i, d in enumerate(cycle_dates):
+    date_str = d.strftime("%Y-%m-%d")
+    date_display = d.strftime("%d/%m")  # Định dạng hiển thị ngày/tháng (ví dụ: 28/08)
+    
+    with cols[i]:
+        is_received = date_str in history_checkins
+        is_today = (date_str == today_str)
+        
         if is_received:
-            st.success(f"**Ngày {i}**\n\n✅ Đã nhận\n(+10 🪙)")
+            st.success(f"**{date_display}**\n\n✅ Đã nhận\n(+10 🪙)")
+        elif is_today:
+            st.info(f"**{date_display}**\n\n⭐ Hôm nay\n(+10 🪙)")
         else:
-            if i == current_streak + 1 or (not checked_today and i == current_streak + 1):
-                st.info(f"**Ngày {i}**\n\n⭐ Hôm nay\n(+10 🪙)")
+            if d > today_dt:
+                st.warning(f"**{date_display}**\n\n⏳ Chưa tới\n(+10 🪙)")
             else:
-                st.warning(f"**Ngày {i}**\n\n⏳ Chưa tới\n(+10 🪙)")
+                st.warning(f"**{date_display}**\n\n❌ Đã lỡ\n(+10 🪙)")
 
 st.markdown("")
 if not checked_today:
     if st.button("✨ NHẤN ĐỂ ĐIỂM DANH NGAY HÔM NAY (+10 Xu)", use_container_width=True, type="primary"):
         new_coins = user.get("coins", 0) + 10
         history_checkins.append(today_str)
-
+        
         users_col.update_one(
             {"_id": ObjectId(user_id)},
             {
@@ -91,7 +101,7 @@ else:
 
 st.markdown("---")
 
-# ================= PHẦN 2: THƯỞNG HOÀN THÀNH JOB (NGÀY / TUẦN / THÁNG) =================
+# ================= PHẦN 2: THƯỞNG HOÀN THÀNH JOB =================
 st.subheader("🎯 Thưởng Mốc Hoàn Thành Job")
 st.markdown("Hoàn thành số lượng Job tương ứng trong Ngày, Tuần và Tháng để nhận thưởng nóng.")
 
@@ -106,10 +116,9 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("### 📌 Mốc Ngày")
     st.write(f"Tiến độ: **{daily_jobs}/30 Job**")
-
     progress_day = min(daily_jobs / 30.0, 1.0)
     st.progress(progress_day)
-
+    
     reward_key_day = f"day_30_{today_str}"
     if daily_jobs >= 30:
         if reward_key_day not in claimed_milestones:
@@ -133,10 +142,10 @@ with col2:
     st.write(f"Tiến độ: **{weekly_jobs}/210 Job**")
     progress_week = min(weekly_jobs / 210.0, 1.0)
     st.progress(progress_week)
-
+    
     current_week_str = datetime.now().strftime("%Y-W%U")
     reward_key_week = f"week_210_{current_week_str}"
-
+    
     if weekly_jobs >= 210:
         if reward_key_week not in claimed_milestones:
             if st.button("Nhận 3,500 Xu (Tuần)", key="btn_week"):
@@ -159,10 +168,10 @@ with col3:
     st.write(f"Tiến độ: **{monthly_jobs}/900 Job**")
     progress_month = min(monthly_jobs / 900.0, 1.0)
     st.progress(progress_month)
-
+    
     current_month_str = datetime.now().strftime("%Y-%m")
     reward_key_month = f"month_900_{current_month_str}"
-
+    
     if monthly_jobs >= 900:
         if reward_key_month not in claimed_milestones:
             if st.button("Nhận 15,000 Xu (Tháng)", key="btn_month"):
