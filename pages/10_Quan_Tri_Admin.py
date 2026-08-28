@@ -1,8 +1,6 @@
-from datetime import datetime, time
-import io
+from datetime import datetime
 import os
 from bson import ObjectId
-import pandas as pd
 from pymongo import MongoClient
 import streamlit as st
 
@@ -25,15 +23,14 @@ try:
     client = init_admin_connection()
     db_local = client["flcheo_db"]
     users_col = db_local["users"]
-    jobs_col = db_local["jobs"]
-    campaigns_col = db_local["campaigns"] # Thêm collection campaigns nếu hệ thống có dùng
+    campaigns_col = db_local["campaigns"] # Bộ sưu tập chiến dịch
     notifications_col = db_local["notifications"]
     logs_col = db_local["admin_logs"]
 except Exception as e:
     st.error(f"Lỗi kết nối cơ sở dữ liệu: {e}")
     st.stop()
 
-# Hàm ghi lại lịch sử thao tác của Admin (Audit Log)
+# Hàm ghi lại lịch sử thao tác của Admin (Audit Log ngầm)
 def log_admin_action(admin_email, action_desc):
     try:
         logs_col.insert_one({
@@ -58,20 +55,18 @@ except Exception:
 st.title("👑 Bảng Điều Khiển Quản Trị Hệ Thống (Admin Dashboard)")
 st.markdown("---")
 
-# ĐỊNH NGHĨA CÁC TAB (Đặt tên biến khớp với phần code bên dưới)
-tab_overview, tab_users, tab_jobs, tab_notis, tab_logs = st.tabs([
+# ĐỊNH NGHĨA CÁC TAB (Chỉ giữ lại 3 tab cần thiết)
+tab_overview, tab_users, tab_notis = st.tabs([
     "📊 Tổng Quan", 
     "👥 Quản Lý Thành Viên", 
-    "🚀 Quản Lý Nhiệm Vụ", 
-    "📢 Gửi Thông Báo",
-    "📜 Nhật Ký Hoạt Động"
+    "📢 Gửi Thông Báo"
 ])
 
 # ================= TAB 1: THỐNG KÊ TỔNG QUAN =================
 with tab_overview:
     st.subheader("📈 Thống Kê Nhanh Hệ Thống")
     total_users = users_col.count_documents({})
-    total_jobs = jobs_col.count_documents({})
+    total_campaigns = campaigns_col.count_documents({}) if 'campaigns_col' in globals() else 0
     
     pipeline = [{"$group": {"_id": None, "total_coins": {"$sum": "$coins"}}}]
     coin_result = list(users_col.aggregate(pipeline))
@@ -83,7 +78,7 @@ with tab_overview:
     with col2:
         st.metric(label="🪙 Tổng Xu Lưu Hành", value=f"{total_coins_system:,} 🪙")
     with col3:
-        st.metric(label="🚀 Tổng Nhiệm Vụ Đang Có", value=f"{total_jobs:,}")
+        st.metric(label="🚀 Tổng Chiến Dịch", value=f"{total_campaigns:,}")
 
 
 # ================= TAB 2: QUẢN LÝ NGƯỜI DÙNG (NÂNG CẤP HOẠT ĐỘNG) =================
@@ -216,17 +211,31 @@ with tab_users:
                         st.warning(f"Đã khóa tài khoản {u_email}!")
                         st.rerun()
 
-# ================= TAB 3: QUẢN LÝ NHIỆM VỤ =================
-with tab_jobs:
-    st.subheader("🚀 Quản Lý Nhiệm Vụ")
-    st.write("Khu vực quản lý danh sách nhiệm vụ mạng xã hội.")
 
-# ================= TAB 4: GỬI THÔNG BÁO =================
+# ================= TAB 3: GỬI THÔNG BÁO =================
 with tab_notis:
-    st.subheader("📢 Gửi Thông Báo Hệ Thống")
-    st.write("Khu vực phát thông báo cho toàn hệ thống.")
-
-# ================= TAB 5: NHẬT KÝ HOẠT ĐỘNG =================
-with tab_logs:
-    st.subheader("📜 Nhật Ký Thao Tác Hệ Thống")
-    st.write("Theo dõi lịch sử thao tác của các Admin.")
+    st.subheader("📢 Đăng Thông Báo Hệ Thống (Broadcast)")
+    st.markdown("Thông báo mới nhất sẽ xuất hiện trực tiếp ngay trang chủ khi người dùng truy cập.")
+    
+    with st.form("noti_form"):
+        n_title = st.text_input("Tiêu đề thông báo", placeholder="Ví dụ: Cập nhật tính năng mới...")
+        n_type = st.selectbox("Loại thông báo", ["Thông báo hệ thống", "Sự kiện Hot 🔥", "Khẩn cấp 🚨"])
+        n_content = st.text_area("Nội dung chi tiết", placeholder="Nhập nội dung thông báo...")
+        
+        submitted_noti = st.form_submit_button("Phát Sóng Thông Báo Ngay", use_container_width=True)
+        if submitted_noti:
+            if not n_title or not n_content:
+                st.warning("Vui lòng điền đầy đủ tiêu đề và nội dung!")
+            else:
+                notifications_col.update_many({}, {"$set": {"active": False}})
+                notifications_col.insert_one({
+                    "title": n_title,
+                    "type": n_type,
+                    "content": n_content,
+                    "created_at": datetime.now(),
+                    "active": True,
+                    "admin_email": admin_email_current
+                })
+                log_admin_action(admin_email_current, f"Đăng thông báo hệ thống: '{n_title}'")
+                st.success("Đã đăng thông báo thành công ra trang chủ!")
+                st.rerun()
