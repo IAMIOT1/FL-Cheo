@@ -1,9 +1,10 @@
-import streamlit as st
-from pymongo import MongoClient
-from bson import ObjectId
+from datetime import datetime
 import os
+from bson import ObjectId
+from pymongo import MongoClient
+import streamlit as st
 
-st.set_page_config(page_title="Job Instagram", page_icon="📸")
+st.set_page_config(page_title="Job Instagram", page_icon="📸", layout="centered")
 if not st.session_state.get("user_id"):
     st.warning("⚠️ Vui lòng đăng nhập trước!")
     st.stop()
@@ -14,16 +15,31 @@ db = client["flcheo_db"]
 users_col = db["users"]
 campaigns_col = db["campaigns"]
 history_col = db["job_history"]
+accounts_col = db["configured_accounts"]
+
+user_id_obj = ObjectId(st.session_state.user_id)
+user = users_col.find_one({"_id": user_id_obj})
 
 st.subheader("📸 Kho Nhiệm Vụ Instagram Kiếm Xu")
 st.markdown("---")
 
-tab_like, tab_follow, tab_comment = st.tabs([
-    "❤️ Thả Tim / Like", "➕ Theo Dõi", "💬 Bình Luận"
+# Kiểm tra cấu hình nick Instagram
+configured_ins = accounts_col.find_one({"user_id": user_id_obj, "platform": "Instagram"})
+
+if not configured_ins:
+    st.warning("⚠️ Bạn chưa cấu hình tài khoản Instagram trên hệ thống!")
+    st.info("👉 Vui lòng vào trang **Cấu Hình Nick** để liên kết tài khoản Instagram trước khi bắt đầu nhận Job.")
+    st.stop()
+else:
+    st.success(f"✅ Đang sử dụng tài khoản Instagram liên kết: `{configured_ins['account_info']}`")
+    st.markdown("---")
+
+tab_tim, tab_follow, tab_comment = st.tabs([
+    "❤️ Thả Tim Ảnh", "➕ Theo Dõi (Follow)", "💬 Bình Luận"
 ])
 
-def render_ig_jobs(action_filter_keywords):
-    completed_job_ids = [h["campaign_id"] for h in history_col.find({"user_id": ObjectId(st.session_state.user_id)})]
+def render_ins_jobs(action_filter_keywords):
+    completed_job_ids = [h["campaign_id"] for h in history_col.find({"user_id": user_id_obj})]
     
     query = {
         "platform": "Instagram",
@@ -37,7 +53,7 @@ def render_ig_jobs(action_filter_keywords):
     campaigns = [c for c in campaigns if str(c["user"]) != st.session_state.user_id]
     
     if not campaigns:
-        st.info("🎉 Hiện không có nhiệm vụ nào trong mục này cả. Hãy quay lại sau nhé!")
+        st.info("🎉 Hiện không có nhiệm vụ Instagram nào trong mục này cả. Hãy quay lại sau nhé!")
         return
 
     for camp in campaigns:
@@ -54,8 +70,26 @@ def render_ig_jobs(action_filter_keywords):
                 st.markdown(f"⏳ Còn lại: **{camp.get('remaining', 1)} lượt**")
             
             if st.button(f"Xác Nhận Đã Hoàn Thành (+{camp['reward']} Xu)", key=str(camp["_id"]), use_container_width=True):
-                users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": camp["reward"]}})
-                history_col.insert_one({"user_id": ObjectId(st.session_state.user_id), "campaign_id": camp["_id"]})
+                current_coins = user.get("coins", 0) + camp["reward"]
+                
+                job_prog = user.get("job_progress", {})
+                daily_count = job_prog.get("daily_job_count", 0) + 1
+                weekly_count = job_prog.get("weekly_job_count", 0) + 1
+                monthly_count = job_prog.get("monthly_job_count", 0) + 1
+                
+                users_col.update_one(
+                    {"_id": user_id_obj}, 
+                    {
+                        "$set": {
+                            "coins": current_coins,
+                            "job_progress.daily_job_count": daily_count,
+                            "job_progress.weekly_job_count": weekly_count,
+                            "job_progress.monthly_job_count": monthly_count
+                        }
+                    }
+                )
+                
+                history_col.insert_one({"user_id": user_id_obj, "campaign_id": camp["_id"]})
                 
                 new_remaining = camp.get('remaining', 1) - 1
                 update_data = {"remaining": new_remaining}
@@ -64,10 +98,10 @@ def render_ig_jobs(action_filter_keywords):
                     
                 campaigns_col.update_one({"_id": camp["_id"]}, {"$set": update_data})
                 
-                st.session_state.coins += camp["reward"]
+                st.session_state.coins = current_coins
                 st.success(f"✅ Hoàn thành! Đã cộng +{camp['reward']} xu.")
                 st.rerun()
 
-with tab_like: render_ig_jobs(["Thả tim (Tym)", "Thả tim", "Tym", "Like"])
-with tab_follow: render_ig_jobs(["Theo dõi (Follow)", "Theo dõi", "Follow"])
-with tab_comment: render_ig_jobs(["Bình luận (Comment)", "Bình luận", "Comment"])
+with tab_tim: render_ins_jobs(["Thả tim (Tym)", "Thả tim", "Tym", "Like", "Thả tim ảnh Instagram"])
+with tab_follow: render_ins_jobs(["Theo dõi (Follow)", "Theo dõi", "Follow", "Tăng theo dõi Instagram"])
+with tab_comment: render_ins_jobs(["Bình luận (Comment)", "Bình luận", "Comment"])

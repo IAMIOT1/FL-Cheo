@@ -20,7 +20,7 @@ except Exception as e:
     st.error(f"Lỗi kết nối database: {e}")
 
 if "user_id" not in st.session_state or not st.session_state.user_id:
-    st.warning("⚠️ Vui lòng đăng nhập ở trang chính (Trang Chủ) trước khi sử dụng tính năng này!")
+    st.warning("⚠️ Vui lòng đăng nhập ở trang chính trước khi sử dụng tính năng này!")
     st.stop()
 
 user_id = st.session_state.user_id
@@ -31,11 +31,37 @@ if not user:
     st.stop()
 
 st.title("🎁 Hệ Thống Điểm Danh & Nhận Thưởng Tích Lũy")
-st.markdown("Điểm danh mỗi ngày và chinh phục 5 mốc nhiệm vụ để nhận hàng ngàn 🪙 Xu!")
+st.markdown("Điểm danh mỗi ngày và chinh phục các mốc nhiệm vụ để nhận hàng ngàn 🪙 Xu!")
 st.markdown("---")
 
 today_dt = datetime.now()
 today_str = today_dt.strftime("%Y-%m-%d")
+current_week_str = today_dt.strftime("%Y-W%U")
+current_month_str = today_dt.strftime("%Y-%m")
+
+# ================= 🚀 XỬ LÝ TỰ ĐỘNG RESET TIẾN ĐỘ THEO THỜI GIAN =================
+job_progress = user.get("job_progress", {})
+last_reset_day = job_progress.get("last_reset_day", "")
+last_reset_week = job_progress.get("last_reset_week", "")
+last_reset_month = job_progress.get("last_reset_month", "")
+
+update_fields = {}
+if last_reset_day != today_str:
+    update_fields["job_progress.daily_job_count"] = 0
+    update_fields["job_progress.last_reset_day"] = today_str
+if last_reset_week != current_week_str:
+    update_fields["job_progress.weekly_job_count"] = 0
+    update_fields["job_progress.last_reset_week"] = current_week_str
+if last_reset_month != current_month_str:
+    update_fields["job_progress.monthly_job_count"] = 0
+    update_fields["job_progress.last_reset_month"] = current_month_str
+
+if update_fields:
+    users_col.update_one({"_id": ObjectId(user_id)}, {"$set": update_fields})
+    # Load lại data sau khi reset
+    user = users_col.find_one({"_id": ObjectId(user_id)})
+    job_progress = user.get("job_progress", {})
+
 history_checkins = user.get("check_in", {}).get("check_in_history", [])
 checked_today = today_str in history_checkins
 
@@ -83,18 +109,13 @@ st.markdown("---")
 st.subheader("🎯 Thưởng 5 Mốc Hoàn Thành Job")
 st.markdown("Hoàn thành từng mốc job tương ứng để nhận thưởng xu nóng ngay lập tức!")
 
-job_progress_data = user.get("job_progress", {})
-daily_jobs = job_progress_data.get("daily_job_count", 0)
-weekly_jobs = job_progress_data.get("weekly_job_count", 0)
-monthly_jobs = job_progress_data.get("monthly_job_count", 0)
-claimed_milestones = job_progress_data.get("claimed_milestones", [])
-
-current_week_str = datetime.now().strftime("%Y-W%U")
-current_month_str = datetime.now().strftime("%Y-%m")
+daily_jobs = job_progress.get("daily_job_count", 0)
+weekly_jobs = job_progress.get("weekly_job_count", 0)
+monthly_jobs = job_progress.get("monthly_job_count", 0)
+claimed_milestones = job_progress.get("claimed_milestones", [])
 
 col1, col2, col3 = st.columns(3)
 
-# Hàm hỗ trợ hiển thị từng mốc nhiệm vụ
 def render_milestone_section(title, current_val, milestones_config, time_prefix):
     st.markdown(f"### {title}")
     st.write(f"Tiến độ hiện tại: **{current_val} Job**")

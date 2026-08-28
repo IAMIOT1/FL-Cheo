@@ -1,9 +1,9 @@
-import streamlit as st
-from pymongo import MongoClient
 from bson import ObjectId
+from pymongo import MongoClient
+import streamlit as st
 import os
 
-st.set_page_config(page_title="Tăng Tương Tác", page_icon="🚀")
+st.set_page_config(page_title="Tăng Tương Tác", page_icon="🚀", layout="centered")
 if not st.session_state.get("user_id"):
     st.warning("⚠️ Vui lòng đăng nhập trước!")
     st.stop()
@@ -34,53 +34,85 @@ with st.form("form_create_campaign"):
     submitted_boost = st.form_submit_button("Tạo Chiến Dịch", use_container_width=True)
     
     if submitted_boost:
-        st.session_state.pending_campaign = {
-            "platform": boost_platform,
-            "action_type": boost_action,
-            "link": boost_link,
-            "quantity": quantity,
-            "total_cost": total_cost,
-            "reward_per_job": NET_REWARD
-        }
+        cleaned_link = boost_link.strip()
+        # Cải tiến: Kiểm tra link cơ bản (phải bắt đầu bằng http hoặc https)
+        if not cleaned_link or not cleaned_link.startswith("http"):
+            st.error("❌ Vui lòng nhập đường dẫn (link) hợp lệ (phải bắt đầu bằng http:// hoặc https://)!")
+        else:
+            st.session_state.pending_campaign = {
+                "platform": boost_platform,
+                "action_type": boost_action,
+                "link": cleaned_link,
+                "quantity": quantity,
+                "total_cost": total_cost,
+                "reward_per_job": NET_REWARD
+            }
 
 if "pending_campaign" in st.session_state and st.session_state.pending_campaign:
     camp_data = st.session_state.pending_campaign
     
-    if not camp_data["link"]:
-        st.warning("⚠️ Vui lòng nhập đường dẫn (link) mục tiêu!")
-        del st.session_state.pending_campaign
-    else:
-        current_user = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
-        user_coins = current_user.get("coins", 0)
+    current_user = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
+    user_coins = current_user.get("coins", 0)
+    
+    if user_coins < camp_data["total_cost"]:
+        st.error(f"❌ Số dư ví không đủ! Bạn cần **{camp_data['total_cost']:,} Xu** nhưng trong ví chỉ có **{user_coins:,} Xu**.")
         
-        if user_coins < camp_data["total_cost"]:
-            st.error(f"❌ Số dư ví không đủ! Bạn cần **{camp_data['total_cost']:,} Xu** nhưng trong ví chỉ có **{user_coins:,} Xu**.")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("💰 Đi Kiếm Thêm Xu Ngay", use_container_width=True):
-                    st.switch_page("pages/2_Kiem_Xu.py")
-            with col2:
-                if st.button("↩️ Hủy & Điều Chỉnh Lại", use_container_width=True):
-                    del st.session_state.pending_campaign
-                    st.rerun()
-        else:
-            users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": -camp_data["total_cost"]}})
-            
-            campaigns_col.insert_one({
-                "user": ObjectId(st.session_state.user_id),
-                "platform": camp_data["platform"],
-                "action_type": camp_data["action_type"],
-                "link": camp_data["link"],
-                "reward": camp_data["reward_per_job"],
-                "original_reward": REWARD_PER_JOB,
-                "quantity": camp_data["quantity"],
-                "remaining": camp_data["quantity"],
-                "active": True
-            })
-            
-            st.session_state.coins = user_coins - camp_data["total_cost"]
-            del st.session_state.pending_campaign
-            
-            st.success("🎉 Tạo chiến dịch tăng tương tác thành công!")
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("💰 Đi Kiếm Thêm Xu Ngay", use_container_width=True):
+                st.switch_page("pages/2_Kiem_Xu.py")
+        with col2:
+            if st.button("↩️ Hủy & Điều Chỉnh Lại", use_container_width=True):
+                del st.session_state.pending_campaign
+                st.rerun()
+    else:
+        # Trừ xu và tạo chiến dịch
+        users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": -camp_data["total_cost"]}})
+        
+        campaigns_col.insert_one({
+            "user": ObjectId(st.session_state.user_id),
+            "platform": camp_data["platform"],
+            "action_type": camp_data["action_type"],
+            "link": camp_data["link"],
+            "reward": camp_data["reward_per_job"],
+            "original_reward": REWARD_PER_JOB,
+            "quantity": camp_data["quantity"],
+            "remaining": camp_data["quantity"],
+            "active": True
+        })
+        
+        st.session_state.coins = user_coins - camp_data["total_cost"]
+        del st.session_state.pending_campaign
+        
+        st.success("🎉 Tạo chiến dịch tăng tương tác thành công!")
+        st.rerun()
+
+st.markdown("---")
+# ================= PHÁT TRIỂN THÊM: QUẢN LÝ CHIẾN DỊCH CỦA TÔI =================
+st.subheader("📋 Quản Lý Chiến Dịch Của Bạn")
+my_campaigns = list(campaigns_col.find({"user": ObjectId(st.session_state.user_id)}).sort("_id", -1))
+
+if not my_campaigns:
+    st.info("Bạn chưa tạo chiến dịch tăng tương tác nào.")
+else:
+    for camp in my_campaigns:
+        with st.container(border=True):
+            col_info, col_action = st.columns([3, 1])
+            with col_info:
+                st.write(f"🌐 **{camp['platform']}** - {camp['action_type']}")
+                st.write(f"🔗 Link: `{camp['link']}`")
+                completed = camp['quantity'] - camp['remaining']
+                st.progress(completed / camp['quantity'] if camp['quantity'] > 0 else 0)
+                st.caption(f"Tiến độ: **{completed}/{camp['quantity']}** lượt | Trạng thái: {'Đang chạy ✅' if camp['active'] else 'Đã dừng ⏸️'}")
+            with col_action:
+                # Nút tắt/bật hoặc hoàn tiền phần còn lại khi hủy chiến dịch
+                if camp['active']:
+                    if st.button("Tắt chiến dịch", key=f"stop_{camp['_id']}"):
+                        campaigns_col.update_one({"_id": camp["_id"]}, {"$set": {"active": False}})
+                        st.success("Đã tạm dừng chiến dịch!")
+                        st.rerun()
+                else:
+                    if st.button("Bật lại", key=f"start_{camp['_id']}"):
+                        campaigns_col.update_one({"_id": camp["_id"]}, {"$set": {"active": True}})
+                        st.success("Đã kích hoạt lại chiến dịch!")
+                        st.rerun()
