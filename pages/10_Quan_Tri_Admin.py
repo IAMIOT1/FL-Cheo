@@ -305,11 +305,15 @@ with tab_audit:
     st.info("Chưa có nhật ký hoạt động nào.")
   else:
     for log in admin_logs:
-      log_time = (
-          log.get("time").strftime("%d/%m/%Y %H:%M:%S")
-          if log.get("time")
-          else "Không rõ"
-      )
+      raw_time = log.get("time")
+      # Xử lý định dạng thời gian an toàn dù là kiểu datetime hay chuỗi text
+      if isinstance(raw_time, datetime):
+        log_time = raw_time.strftime("%d/%m/%Y %H:%M:%S")
+      elif raw_time:
+        log_time = str(raw_time)
+      else:
+        log_time = "Không rõ"
+
       with st.container(border=True):
         st.markdown(
             f"🛡️ **Admin:** `{log.get('admin_email', 'Hệ thống')}` — ⏰"
