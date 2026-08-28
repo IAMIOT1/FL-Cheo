@@ -41,15 +41,15 @@ def log_admin_action(admin_email, action_desc):
     except:
         pass
 
-# Xác thực quyền Admin từ database
+# Xác thực quyền Admin từ database (ĐÃ SỬA LỖI LOGIC)
 try:
     current_user = users_col.find_one({"_id": ObjectId(st.session_state.user_id)})
-    if not current_user or not current_user.get("role") != "admin":
+    if not current_user or current_user.get("role") != "admin":
         st.error("⛔ Bạn không có quyền truy cập khu vực này!")
         st.stop()
     admin_email_current = current_user.get("email", "Admin")
-except Exception:
-    st.error("⛔ Xác thực tài khoản thất bại!")
+except Exception as e:
+    st.error(f"⛔ Xác thực tài khoản thất bại: {e}")
     st.stop()
 
 st.title("👑 Bảng Điều Khiển Quản Trị Hệ Thống (Admin Dashboard)")
@@ -62,7 +62,7 @@ tab_overview, tab_users, tab_notis = st.tabs([
     "📢 Gửi Thông Báo"
 ])
 
-# ================= TAB 1: THỐNG KÊ TỔNG QUAN (ĐÃ NÂNG CẤP) =================
+# ================= TAB 1: THỐNG KÊ TỔNG QUAN =================
 with tab_overview:
     st.subheader("📈 Thống Kê Nhanh Hệ Thống")
     
@@ -70,8 +70,6 @@ with tab_overview:
     total_campaigns = campaigns_col.count_documents({}) if 'campaigns_col' in globals() else 0
     
     # Đếm số lượng user đang online (hoạt động trong vòng 5 phút qua)
-    five_mins_ago = datetime.now().timestamp() - 300 # Hoặc dùng timedelta tùy cấu trúc lưu trữ
-    # Dùng cách kiểm tra tương đối với thời gian hiện tại:
     online_users_count = 0
     all_users_cursor = users_col.find({}, {"last_active": 1})
     for usr in all_users_cursor:
@@ -89,7 +87,7 @@ with tab_overview:
     coin_result = list(users_col.aggregate(pipeline))
     total_coins_system = coin_result[0]["total_coins"] if coin_result else 0
 
-    # Hiển thị các Metric chia đều đẹp mắt hơn
+    # Hiển thị các Metric
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric(label="👥 Tổng Thành Viên", value=f"{total_users:,}")
@@ -102,7 +100,6 @@ with tab_overview:
         
     st.markdown("---")
 
-    # Chia cột hiển thị bổ sung thông tin trực quan
     col_left, col_right = st.columns([1.2, 1])
 
     with col_left:
