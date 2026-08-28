@@ -245,24 +245,31 @@ with tab_stats:
   total_campaigns_count = campaigns_col.count_documents({})
   active_campaigns_count = campaigns_col.count_documents({"active": True})
 
-  coin_pipeline = [{"$group": {"_id": None, "total_coins": {"$sum": "$coins"}}}]
-  coin_result = list(users_col.aggregate(coin_pipeline))
-  total_system_coins = coin_result[0]["total_coins"] if coin_result else 0
+  # Tính tổng số xu an toàn (dù user có hay không có trường coins)
+  total_system_coins = 0
+  for u in users_col.find({}, {"coins": 1}):
+    total_system_coins += u.get("coins", 0)
 
-  fee_pipeline = [
-      {"$group": {"_id": None, "total_fees": {"$sum": "$fee_collected"}}}
-  ]
-  fee_result = list(campaigns_col.aggregate(fee_pipeline))
-  total_system_fees = fee_result[0]["total_fees"] if fee_result else 0
+  # Tính tổng phí thu từ chiến dịch an toàn
+  total_system_fees = 0
+  try:
+    for c in campaigns_col.find({}, {"fee_collected": 1}):
+      total_system_fees += c.get("fee_collected", 0)
+  except:
+    total_system_fees = 0
 
-  refund_pipeline = [{
-      "$match": {"type": "REFUND"},
-      "$group": {"_id": None, "total_refunds": {"$sum": "$amount"}},
-  }]
-  refund_result = list(logs_col.aggregate(refund_pipeline))
-  total_system_refunds = (
-      refund_result[0]["total_refunds"] if refund_result else 0
-  )
+  # Tính tổng xu hoàn trả từ system_logs một cách an toàn tuyệt đối
+  total_system_refunds = 0
+  try:
+    for lg in logs_col.find({}, {"action": 1}):
+      act_text = lg.get("action", "")
+      if "hoàn" in act_text.lower():
+        import re
+        nums = re.findall(r"\d+", act_text.replace(",", ""))
+        if nums:
+          total_system_refunds += int(nums[-1])
+  except:
+    total_system_refunds = 0
 
   m1, m2, m3 = st.columns(3)
   m1.metric("👥 Tổng thành viên", total_users_count)
