@@ -1,11 +1,12 @@
-import streamlit as st
-from pymongo import MongoClient
-from bson import ObjectId
+from datetime import datetime
 import os
 import random
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from bson import ObjectId
+from pymongo import MongoClient
+import streamlit as st
 
 st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
 
@@ -13,9 +14,11 @@ MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
 EMAIL_SENDER = "toinguyen7126@gmail.com"
 EMAIL_PASSWORD = "japg eyvh ontl dliw"
 
+
 @st.cache_resource
 def init_connection():
     return MongoClient(MONGO_URI)
+
 
 try:
     client = init_connection()
@@ -24,16 +27,17 @@ try:
 except Exception as e:
     st.error(f"Lỗi kết nối database: {e}")
 
+
 def send_email_pin(receiver_email, pin_code):
     try:
         msg = MIMEMultipart()
-        msg['From'] = EMAIL_SENDER
-        msg['To'] = receiver_email
-        msg['Subject'] = "Mã Xác Thực Đăng Ký Tài Khoản (Fl Chéo)"
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = receiver_email
+        msg["Subject"] = "Mã Xác Thực Đăng Ký Tài Khoản (Fl Chéo)"
         body = f"Chào bạn,\n\nMã PIN xác thực tài khoản của bạn là: {pin_code}\n\nTrân trọng!"
-        msg.attach(MIMEText(body, 'plain'))
-        
-        server = smtplib.SMTP('smtp.gmail.com', 587)
+        msg.attach(MIMEText(body, "plain"))
+
+        server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(EMAIL_SENDER, EMAIL_PASSWORD)
         server.sendmail(EMAIL_SENDER, receiver_email, msg.as_string())
@@ -41,6 +45,7 @@ def send_email_pin(receiver_email, pin_code):
         return True, "Gửi email thành công!"
     except Exception as e:
         return False, f"Lỗi gửi email: {str(e)}"
+
 
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -76,7 +81,7 @@ pages_dict = {
         st.Page("pages/7_🎁_Diem_Danh.py", title="Điểm Danh Hàng Ngày", icon="🎁"),
         st.Page("pages/8_📊_Quan_Ly_Va_Lich_Su.py", title="Lịch Sử & Quản Lý", icon="📊"),
         st.Page("pages/9_👑_Bang_Xep_Hang.py", title="Bảng Xếp Hạng", icon="🏆"),
-    ]
+    ],
 }
 
 if is_admin:
@@ -93,14 +98,14 @@ st.markdown("---")
 
 if not st.session_state.user_id:
     tab1, tab2 = st.tabs(["🔑 Đăng Nhập", "✨ Đăng Ký Tài Khoản"])
-    
+
     with tab1:
         st.markdown("### Đăng nhập vào hệ thống")
         with st.form("login_form"):
             login_input = st.text_input("Tên đăng nhập hoặc Email")
             login_password = st.text_input("Mật khẩu", type="password")
             submitted_login = st.form_submit_button("Đăng Nhập Ngay", use_container_width=True)
-            
+
             if submitted_login:
                 user = users_col.find_one({"$or": [{"username": login_input}, {"email": login_input}]})
                 if user and user.get("password") == login_password:
@@ -120,7 +125,7 @@ if not st.session_state.user_id:
                 reg_email = st.text_input("Địa chỉ Email")
                 reg_pass = st.text_input("Mật khẩu", type="password")
                 submitted_reg = st.form_submit_button("Gửi Mã Xác Thực (PIN)", use_container_width=True)
-                
+
                 if submitted_reg:
                     if not reg_user or not reg_email or not reg_pass:
                         st.warning("Vui lòng điền đầy đủ thông tin!")
@@ -139,20 +144,37 @@ if not st.session_state.user_id:
                             st.rerun()
                         else:
                             st.error(msg)
-                            
+
         elif st.session_state.reg_step == 2:
             with st.form("reg_step2_form"):
                 entered_pin = st.text_input("Nhập mã PIN 6 số từ email", type="password")
                 submitted_verify = st.form_submit_button("Xác Nhận Đăng Ký", use_container_width=True)
-                
+
                 if submitted_verify:
                     if entered_pin == st.session_state.generated_pin:
+                        today_str = datetime.now().strftime("%Y-%m-%d")
+                        current_week = datetime.now().strftime("%Y-W%U")
+                        current_month = datetime.now().strftime("%Y-%m")
+
                         res = users_col.insert_one({
                             "username": st.session_state.temp_username,
                             "email": st.session_state.temp_email,
                             "password": st.session_state.temp_password,
                             "coins": 100,
-                            "role": "user"
+                            "role": "user",
+                            "check_in": {
+                                "check_in_history": [],
+                                "last_check_in_date": ""
+                            },
+                            "job_progress": {
+                                "daily_job_count": 0,
+                                "last_job_date": today_str,
+                                "weekly_job_count": 0,
+                                "current_week": current_week,
+                                "monthly_job_count": 0,
+                                "current_month": current_month,
+                                "claimed_milestones": []
+                            }
                         })
                         st.session_state.user_id = str(res.inserted_id)
                         st.session_state.username = st.session_state.temp_username
@@ -164,13 +186,13 @@ if not st.session_state.user_id:
                         st.error("Mã PIN không chính xác!")
 else:
     st.success(f"Xin chào **{st.session_state.username}**! Số dư hiện tại của bạn: **{st.session_state.coins:,} 🪙 Xu**.")
-    
+
     if is_admin:
         st.info("👑 Bạn đang đăng nhập bằng tài khoản **Admin**. Hãy nhìn sang thanh Sidebar bên trái để truy cập khu vực quản trị.")
 
     st.markdown("### 💡 Hướng dẫn nhanh")
     st.info("👉 Hãy sử dụng thanh menu bên trái (Sidebar) để cấu hình tài khoản, tạo chiến dịch hoặc nhận job kiếm xu.")
-    
+
     if st.button("Đăng Xuất Tài Khoản", type="secondary", use_container_width=True):
         st.session_state.user_id = None
         st.session_state.username = None
