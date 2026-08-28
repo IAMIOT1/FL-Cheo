@@ -10,77 +10,114 @@ import streamlit as st
 
 st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
 
-# ================= CUSTOM CSS: PHONG CÁCH ÁNH SÁNG XANH (NEON BLUE) =================
-st.markdown("""
+# ================= QUẢN LÝ TRẠNG THÁI GIAO DIỆN (THEME SWITCHER) =================
+if "theme_mode" not in st.session_state:
+  st.session_state.theme_mode = "Tối (Neon Blue)"
+
+with st.sidebar:
+  st.markdown("---")
+  st.markdown("### 🎨 Cài Đặt Giao Diện")
+  st.session_state.theme_mode = st.selectbox(
+      "Chọn chế độ hiển thị:",
+      ["Tối (Neon Blue)", "Sáng (Light Mode)", "Theo hệ thống (Auto)"],
+      index=0,
+  )
+
+# Thiết lập mã màu động dựa theo lựa chọn
+if st.session_state.theme_mode == "Sáng (Light Mode)":
+  # Cấu hình màu sắc nền sáng, chữ tối
+  bg_color = "#f8fafc"
+  card_bg = "#ffffff"
+  text_color = "#0f172a"
+  heading_color = "#0284c7"
+  border_color = "rgba(2, 132, 199, 0.2)"
+  sidebar_bg = "#f1f5f9"
+  input_bg = "#ffffff"
+elif st.session_state.theme_mode == "Tối (Neon Blue)":
+  # Cấu hình màu sắc nền tối, xanh neon
+  bg_color = "#0b0f19"
+  card_bg = "rgba(17, 24, 39, 0.7)"
+  text_color = "#e2e8f0"
+  heading_color = "#00f2fe"
+  border_color = "rgba(0, 242, 254, 0.2)"
+  sidebar_bg = "#070a13"
+  input_bg = "#111827"
+else:
+  # Chế độ "Theo hệ thống" (Mặc định của Streamlit)
+  bg_color = "transparent"
+  card_bg = "transparent"
+  text_color = "inherit"
+  heading_color = "inherit"
+  border_color = "rgba(128, 128, 128, 0.2)"
+  sidebar_bg = "transparent"
+  input_bg = "transparent"
+
+# ================= CSS ĐỘNG DỰA TRÊN THEME =================
+st.markdown(
+    f"""
     <style>
     /* Tổng thể nền ứng dụng */
-    .stApp {
-        background-color: #0b0f19;
-        color: #e2e8f0;
-    }
+    .stApp {{
+        background-color: {bg_color};
+        color: {text_color};
+    }}
     
-    /* Hiệu ứng phát sáng cho các tiêu đề chính */
-    h1, h2, h3 {
-        color: #00f2fe !important;
-        text-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
-    }
+    /* Tiêu đề */
+    h1, h2, h3 {{
+        color: {heading_color} !important;
+        text-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+    }}
 
-    /* Tùy chỉnh các khối container / card hiển thị */
-    div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        background: rgba(17, 24, 39, 0.7);
-        border: 1px solid rgba(0, 242, 254, 0.2) !important;
+    /* Khối container / card hiển thị */
+    div[data-testid="stVerticalBlock"] > div[style*="border"] {{
+        background: {card_bg};
+        border: 1px solid {border_color} !important;
         border-radius: 12px;
-        box-shadow: 0 0 15px rgba(0, 242, 254, 0.05);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         transition: all 0.3s ease;
-    }
-    div[data-testid="stVerticalBlock"] > div[style*="border"]:hover {
-        border-color: rgba(0, 242, 254, 0.6) !important;
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
-    }
+    }}
 
-    /* Thanh Sidebar ánh sáng xanh */
-    [data-testid="stSidebar"] {
-        background-color: #070a13;
-        border-right: 1px solid rgba(0, 242, 254, 0.15);
-    }
+    /* Thanh Sidebar */
+    [data-testid="stSidebar"] {{
+        background-color: {sidebar_bg};
+        border-right: 1px solid {border_color};
+    }}
 
-    /* Các nút bấm (Buttons) hiệu ứng Neon */
-    .stButton > button {
+    /* Các nút bấm (Buttons) */
+    .stButton > button {{
         background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
         color: #070a13;
         font-weight: 700;
         border: none;
         border-radius: 8px;
-        box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.3);
         transition: all 0.3s ease;
-    }
-    .stButton > button:hover {
+    }}
+    .stButton > button:hover {{
         opacity: 0.9;
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.7);
+        box-shadow: 0 0 20px rgba(0, 242, 254, 0.6);
         transform: translateY(-2px);
-    }
+    }}
 
     /* Ô nhập liệu (Inputs) */
-    .stTextInput > div > div > input, .stSelectbox > div > div {
-        background-color: #111827 !important;
-        color: #fff !important;
-        border: 1px solid rgba(0, 242, 254, 0.3) !important;
+    .stTextInput > div > div > input, .stSelectbox > div > div {{
+        background-color: {input_bg} !important;
+        color: {text_color} !important;
+        border: 1px solid {border_color} !important;
         border-radius: 8px;
-    }
-    .stTextInput > div > div > input:focus {
-        border-color: #00f2fe !important;
-        box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
-    }
+    }}
 
-    /* Các khung thông báo (Success, Info, Warning) */
-    div.stAlert {
-        background-color: rgba(17, 24, 39, 0.9);
-        border: 1px solid rgba(0, 242, 254, 0.3);
-        color: #e2e8f0;
+    /* Khung thông báo */
+    div.stAlert {{
+        background-color: {card_bg};
+        border: 1px solid {border_color};
+        color: {text_color};
         border-radius: 10px;
-    }
+    }}
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
