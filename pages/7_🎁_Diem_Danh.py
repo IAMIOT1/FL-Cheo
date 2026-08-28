@@ -1,17 +1,19 @@
-import streamlit as st
-from pymongo import MongoClient
-from bson import ObjectId
-import os
 from datetime import datetime
+import os
+from bson import ObjectId
+from pymongo import MongoClient
+import streamlit as st
 
 st.set_page_config(page_title="Điểm Danh & Nhận Thưởng", page_icon="🎁", layout="centered")
 
 # Kết nối MongoDB
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
 
+
 @st.cache_resource
 def init_connection():
     return MongoClient(MONGO_URI)
+
 
 try:
     client = init_connection()
@@ -39,7 +41,7 @@ st.markdown("---")
 
 # Lấy ngày hiện tại chuẩn định dạng YYYY-MM-DD
 today_str = datetime.now().strftime("%Y-%m-%d")
-history_checkins = user.get("check_in_history", [])
+history_checkins = user.get("check_in", {}).get("check_in_history", [])
 
 # Kiểm tra xem hôm nay đã điểm danh chưa
 checked_today = today_str in history_checkins
@@ -48,18 +50,15 @@ checked_today = today_str in history_checkins
 st.subheader("📅 Bảng Điểm Danh Chu Kỳ 7 Ngày")
 st.markdown("Mỗi ngày điểm danh nhận **+10 Xu**. Hoàn thành chu kỳ 7 ngày liên tiếp để nhận thưởng lớn!")
 
-# Tính toán chuỗi hiện tại (tối đa 7 ngày trong chu kỳ)
-# Nếu hôm nay đã điểm danh thì tính số ngày đã điểm danh trong chu kỳ hiện tại
 current_streak = len(history_checkins) % 7
 if current_streak == 0 and checked_today:
     current_streak = 7
 
 cols = st.columns(7)
 for i in range(1, 8):
-    with cols[i-1]:
-        # Trạng thái của từng ngày trong chu kỳ 7 ngày hiện tại
+    with cols[i - 1]:
         is_received = i < current_streak or (i == current_streak and checked_today)
-        
+
         if is_received:
             st.success(f"**Ngày {i}**\n\n✅ Đã nhận\n(+10 🪙)")
         else:
@@ -71,16 +70,16 @@ for i in range(1, 8):
 st.markdown("")
 if not checked_today:
     if st.button("✨ NHẤN ĐỂ ĐIỂM DANH NGAY HÔM NAY (+10 Xu)", use_container_width=True, type="primary"):
-        # Cập nhật lịch sử điểm danh và cộng 10 xu
         new_coins = user.get("coins", 0) + 10
         history_checkins.append(today_str)
-        
+
         users_col.update_one(
             {"_id": ObjectId(user_id)},
             {
                 "$set": {
                     "coins": new_coins,
-                    "check_in_history": history_checkins
+                    "check_in.check_in_history": history_checkins,
+                    "check_in.last_check_in_date": today_str
                 }
             }
         )
@@ -96,23 +95,21 @@ st.markdown("---")
 st.subheader("🎯 Thưởng Mốc Hoàn Thành Job")
 st.markdown("Hoàn thành số lượng Job tương ứng trong Ngày, Tuần và Tháng để nhận thưởng nóng.")
 
-# Giả lập số liệu job của user (bạn có thể thay thế bằng biến đếm thực tế từ bảng job của bạn)
-# Ví dụ lấy từ database của user:
-daily_jobs = user.get("daily_job_count", 0)
-weekly_jobs = user.get("weekly_job_count", 0)
-monthly_jobs = user.get("monthly_job_count", 0)
-claimed_milestones = user.get("claimed_milestones", [])
+job_progress_data = user.get("job_progress", {})
+daily_jobs = job_progress_data.get("daily_job_count", 0)
+weekly_jobs = job_progress_data.get("weekly_job_count", 0)
+monthly_jobs = job_progress_data.get("monthly_job_count", 0)
+claimed_milestones = job_progress_data.get("claimed_milestones", [])
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("### 📌 Mốc Ngày")
-    st.write(Tên tiến độ: **{daily_jobs}/30 Job**")
-    
-    # Tiến độ hiển thị qua thanh progress bar
+    st.write(f"Tiến độ: **{daily_jobs}/30 Job**")
+
     progress_day = min(daily_jobs / 30.0, 1.0)
     st.progress(progress_day)
-    
+
     reward_key_day = f"day_30_{today_str}"
     if daily_jobs >= 30:
         if reward_key_day not in claimed_milestones:
@@ -121,7 +118,7 @@ with col1:
                 claimed_milestones.append(reward_key_day)
                 users_col.update_one(
                     {"_id": ObjectId(user_id)},
-                    {"$set": {"coins": new_coins, "claimed_milestones": claimed_milestones}}
+                    {"$set": {"coins": new_coins, "job_progress.claimed_milestones": claimed_milestones}}
                 )
                 st.session_state.coins = new_coins
                 st.success("Nhận thành công 500 Xu thưởng ngày!")
@@ -136,11 +133,10 @@ with col2:
     st.write(f"Tiến độ: **{weekly_jobs}/210 Job**")
     progress_week = min(weekly_jobs / 210.0, 1.0)
     st.progress(progress_week)
-    
-    # Tính tuần hiện tại (ví dụ dựa theo số tuần trong năm)
+
     current_week_str = datetime.now().strftime("%Y-W%U")
     reward_key_week = f"week_210_{current_week_str}"
-    
+
     if weekly_jobs >= 210:
         if reward_key_week not in claimed_milestones:
             if st.button("Nhận 3,500 Xu (Tuần)", key="btn_week"):
@@ -148,7 +144,7 @@ with col2:
                 claimed_milestones.append(reward_key_week)
                 users_col.update_one(
                     {"_id": ObjectId(user_id)},
-                    {"$set": {"coins": new_coins, "claimed_milestones": claimed_milestones}}
+                    {"$set": {"coins": new_coins, "job_progress.claimed_milestones": claimed_milestones}}
                 )
                 st.session_state.coins = new_coins
                 st.success("Nhận thành công 3,500 Xu thưởng tuần!")
@@ -163,10 +159,10 @@ with col3:
     st.write(f"Tiến độ: **{monthly_jobs}/900 Job**")
     progress_month = min(monthly_jobs / 900.0, 1.0)
     st.progress(progress_month)
-    
+
     current_month_str = datetime.now().strftime("%Y-%m")
     reward_key_month = f"month_900_{current_month_str}"
-    
+
     if monthly_jobs >= 900:
         if reward_key_month not in claimed_milestones:
             if st.button("Nhận 15,000 Xu (Tháng)", key="btn_month"):
@@ -174,7 +170,7 @@ with col3:
                 claimed_milestones.append(reward_key_month)
                 users_col.update_one(
                     {"_id": ObjectId(user_id)},
-                    {"$set": {"coins": new_coins, "claimed_milestones": claimed_milestones}}
+                    {"$set": {"coins": new_coins, "job_progress.claimed_milestones": claimed_milestones}}
                 )
                 st.session_state.coins = new_coins
                 st.success("Nhận thành công 15,000 Xu thưởng tháng!")
