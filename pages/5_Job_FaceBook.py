@@ -23,86 +23,133 @@ user = users_col.find_one({"_id": user_id_obj})
 st.subheader("📘 Kho Nhiệm Vụ Facebook Kiếm Xu")
 st.markdown("---")
 
-# Kiểm tra cấu hình nick Facebook
-configured_fb = accounts_col.find_one({"user_id": user_id_obj, "platform": "Facebook"})
+# ================= 1. KIỂM TRA CẤU HÌNH NICK FACEBOOK =================
+configured_facebook = accounts_col.find_one({"user_id": user_id_obj, "platform": "Facebook"})
 
-if not configured_fb:
+if not configured_facebook:
     st.warning("⚠️ Bạn chưa cấu hình tài khoản Facebook trên hệ thống!")
-    st.info("👉 Vui lòng vào trang **Cấu Hình Nick** để liên kết tài khoản Facebook trước khi bắt đầu nhận Job.")
+    st.info("👉 Vui lòng vào trang **Cấu Hình Nick** để liên kết tài khoản Facebook trước khi bắt đầu nhận Job kiếm xu.")
     st.stop()
 else:
-    st.success(f"✅ Đang sử dụng tài khoản Facebook liên kết: `{configured_fb['account_info']}`")
+    st.success(f"✅ Đang sử dụng tài khoản Facebook liên kết: `{configured_facebook.get('account_info', 'N/A')}`")
     st.markdown("---")
 
 tab_like, tab_follow, tab_comment, tab_share = st.tabs([
-    "👍 Thích Bài Viết", "➕ Theo Dõi (Sub)", "💬 Bình Luận", "🔄 Chia Sẻ"
+    "👍 Thích Trang/Bài Viết", "➕ Theo Dõi (Follow)", "💬 Bình Luận", "🔄 Chia Sẻ"
 ])
 
-def render_fb_jobs(action_filter_keywords):
-    completed_job_ids = [h["campaign_id"] for h in history_col.find({"user_id": user_id_obj})]
+# Hàm xử lý hoàn thành Job Facebook an toàn (Atomic Update)
+def complete_facebook_job(campaign_id, reward_coins):
+    try:
+        updated_camp = campaigns_col.find_one_and_update(
+            {
+                "_id": ObjectId(campaign_id),
+                "remaining": {"$gt": 0},
+                "active": True,
+                "user_id": {"$ne": user_id_obj}
+            },
+            {"$inc": {"remaining": -1}},
+            return_document=True
+        )
+
+        if not updated_camp:
+            st.error("❌ Nhiệm vụ này đã hết lượt, bị tạm dừng hoặc không còn khả dụng!")
+            if f"clicked_{campaign_id}" in st.session_state:
+                del st.session_state[f"clicked_{campaign_id}"]
+            st.rerun()
+
+        if updated_camp.get("remaining", 0) <= 0:
+            campaigns_col.update_one({"_id": ObjectId(campaign_id)}, {"$set": {"active": False}})
+
+        current_user = users_col.find_one({"_id": user_id_obj})
+        current_coins = current_user.get("coins", 0) + reward_coins
+        
+        job_prog = current_user.get("job_progress", {})
+        daily_count = job_prog.get("daily_job_count", 0) + 1
+        weekly_count = job_prog.get("weekly_job_count", 0) + 1
+        monthly_count = job_prog.get("monthly_job_count", 0) + 1
+        
+        users_col.update_one(
+            {"_id": user_id_obj}, 
+            {
+                "$set": {
+                    "coins": current_coins,
+                    "job_progress.daily_job_count": daily_count,
+                    "job_progress.weekly_job_count": weekly_count,
+                    "job_progress.monthly_job_count": monthly_count
+                }
+            }
+        )
+        
+        history_col.insert_one({
+            "user_id": user_id_obj,
+            "campaign_id": ObjectId(campaign_id),
+            "platform": "Facebook",
+            "reward": reward_coins,
+            "completed_at": datetime.now()
+        })
+        
+        st.session_state.coins = current_coins
+        if f"clicked_{campaign_id}" in st.session_state:
+            del st.session_state[f"clicked_{campaign_id}"]
+            
+        st.success(f"✅ Hoàn thành! Đã cộng +{reward_coins} xu và tính vào tiến độ mốc job.")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Lỗi hệ thống khi hoàn thành job: {e}")
+
+def render_jobs(action_filter_keywords):
+    completed_job_ids = [h["campaign_id"] for h in history_col.find({"user_id": user_id_obj}, {"campaign_id": 1}).limit(500)]
     
     query = {
         "platform": "Facebook",
         "active": True,
         "_id": {"$nin": completed_job_ids},
         "remaining": {"$gt": 0},
-        "action_type": {"$in": action_filter_keywords}
+        "action_type": {"$in": action_filter_keywords},
+        "user_id": {"$ne": user_id_obj}
     }
     
-    campaigns = list(campaigns_col.find(query))
-    campaigns = [c for c in campaigns if str(c["user"]) != st.session_state.user_id]
+    campaigns = list(campaigns_col.find(query).limit(10))
     
     if not campaigns:
-        st.info("🎉 Hiện không có nhiệm vụ Facebook nào trong mục này cả. Hãy quay lại sau nhé!")
+        st.info("🎉 Hiện không có nhiệm vụ nào trong mục này cả. Hãy quay lại sau nhé!")
         return
 
     for camp in campaigns:
+        c_id = str(camp.get("_id"))
         action_type = camp.get('action_type', '')
+        c_link = camp.get('link', '#')
+        c_reward = camp.get('reward', 10)
+        c_remaining = camp.get('remaining', 1)
         
         with st.container(border=True):
             st.markdown(f"### 📌 {action_type} Facebook")
-            st.markdown(f"🔗 **Link mục tiêu:** [Bấm vào đây để mở liên kết]({camp['link']})")
+            st.markdown(f"🔗 **Link mục tiêu:** [{c_link}]({c_link})")
             
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown(f"💰 Phần thưởng: **+{camp['reward']} Xu**")
+                st.markdown(f"💰 Phần thưởng: **+{c_reward} Xu**")
             with col2:
-                st.markdown(f"⏳ Còn lại: **{camp.get('remaining', 1)} lượt**")
+                st.markdown(f"⏳ Còn lại: **{c_remaining} lượt**")
             
-            if st.button(f"Xác Nhận Đã Hoàn Thành (+{camp['reward']} Xu)", key=str(camp["_id"]), use_container_width=True):
-                current_coins = user.get("coins", 0) + camp["reward"]
-                
-                job_prog = user.get("job_progress", {})
-                daily_count = job_prog.get("daily_job_count", 0) + 1
-                weekly_count = job_prog.get("weekly_job_count", 0) + 1
-                monthly_count = job_prog.get("monthly_job_count", 0) + 1
-                
-                users_col.update_one(
-                    {"_id": user_id_obj}, 
-                    {
-                        "$set": {
-                            "coins": current_coins,
-                            "job_progress.daily_job_count": daily_count,
-                            "job_progress.weekly_job_count": weekly_count,
-                            "job_progress.monthly_job_count": monthly_count
-                        }
-                    }
-                )
-                
-                history_col.insert_one({"user_id": user_id_obj, "campaign_id": camp["_id"]})
-                
-                new_remaining = camp.get('remaining', 1) - 1
-                update_data = {"remaining": new_remaining}
-                if new_remaining <= 0:
-                    update_data["active"] = False
-                    
-                campaigns_col.update_one({"_id": camp["_id"]}, {"$set": update_data})
-                
-                st.session_state.coins = current_coins
-                st.success(f"✅ Hoàn thành! Đã cộng +{camp['reward']} xu.")
-                st.rerun()
+            click_key = f"clicked_{c_id}"
+            has_clicked = st.session_state.get(click_key, False)
+            
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("🚀 Đã Mở Link / Tương Tác", key=f"open_fb_{c_id}", use_container_width=True):
+                    st.session_state[click_key] = True
+                    st.rerun()
+            
+            with col_btn2:
+                if st.button(f"✅ Xác Nhận (+{c_reward} Xu)", key=f"done_fb_{c_id}", type="primary", disabled=not has_clicked, use_container_width=True):
+                    complete_facebook_job(c_id, c_reward)
+            
+            if not has_clicked:
+                st.caption("💡 Mẹo: Bấm nút **'Đã Mở Link / Tương Tác'** bên trái sau khi hoàn thành thao tác trên Facebook để mở khóa nút nhận xu.")
 
-with tab_like: render_fb_jobs(["Thích bài viết", "Like", "Thích trang", "Like page"])
-with tab_follow: render_fb_jobs(["Theo dõi (Follow)", "Theo dõi", "Follow", "Sub trang cá nhân"])
-with tab_comment: render_fb_jobs(["Bình luận (Comment)", "Bình luận", "Comment"])
-with tab_share: render_fb_jobs(["Chia sẻ (Share)", "Share bài viết"])
+with tab_like: render_jobs(["Thích (Like)", "Thích", "Like", "Thả tim", "Tăng like Facebook"])
+with tab_follow: render_jobs(["Theo dõi (Follow)", "Theo dõi", "Follow", "Sub", "Tăng theo dõi Facebook"])
+with tab_comment: render_jobs(["Bình luận (Comment)", "Bình luận", "Comment", "Tăng bình luận Facebook"])
+with tab_share: render_jobs(["Chia sẻ (Share)", "Share", "Tăng share Facebook"])

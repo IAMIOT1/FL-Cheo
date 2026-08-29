@@ -18,6 +18,7 @@ try:
     users_col = db["users"]
 except Exception as e:
     st.error(f"Lỗi kết nối database: {e}")
+    st.stop()
 
 if "user_id" not in st.session_state or not st.session_state.user_id:
     st.warning("⚠️ Vui lòng đăng nhập ở trang chính trước khi sử dụng tính năng này!")
@@ -46,30 +47,46 @@ last_reset_week = job_progress.get("last_reset_week", "")
 last_reset_month = job_progress.get("last_reset_month", "")
 
 update_fields = {}
+claimed_milestones = job_progress.get("claimed_milestones", [])
+
 if last_reset_day != today_str:
     update_fields["job_progress.daily_job_count"] = 0
     update_fields["job_progress.last_reset_day"] = today_str
+    claimed_milestones = [m for m in claimed_milestones if not m.startswith("day_")]
+
 if last_reset_week != current_week_str:
     update_fields["job_progress.weekly_job_count"] = 0
     update_fields["job_progress.last_reset_week"] = current_week_str
+    claimed_milestones = [m for m in claimed_milestones if not m.startswith("week_")]
+
 if last_reset_month != current_month_str:
     update_fields["job_progress.monthly_job_count"] = 0
     update_fields["job_progress.last_reset_month"] = current_month_str
+    claimed_milestones = [m for m in claimed_milestones if not m.startswith("month_")]
 
-if update_fields:
+if update_fields or len(claimed_milestones) != len(job_progress.get("claimed_milestones", [])):
+    update_fields["job_progress.claimed_milestones"] = claimed_milestones
     users_col.update_one({"_id": ObjectId(user_id)}, {"$set": update_fields})
-    # Load lại data sau khi reset
     user = users_col.find_one({"_id": ObjectId(user_id)})
     job_progress = user.get("job_progress", {})
 
 history_checkins = user.get("check_in", {}).get("check_in_history", [])
 checked_today = today_str in history_checkins
 
-# ================= PHẦN 1: ĐIỂM DANH 7 NGÀY =================
-st.subheader("📅 Bảng Điểm Danh Chu Kỳ 7 Ngày")
-cycle_dates = [today_dt - timedelta(days=(len(history_checkins) % 7) - i) for i in range(7)]
+# Tính toán chuỗi ngày điểm danh liên tiếp (Streak)
+streak_count = 0
+check_date = today_dt
+while check_date.strftime("%Y-%m-%d") in history_checkins:
+    streak_count += 1
+    check_date -= timedelta(days=1)
 
+# ================= PHẦN 1: ĐIỂM DANH 7 NGÀY & THỐNG KÊ STREAK =================
+st.subheader("📅 Bảng Điểm Danh 7 Ngày Gần Nhất")
+st.info(🔥 Chuỗi điểm danh liên tiếp: **{streak_count} ngày** liên tục! Giữ vững phong độ nhé.)
+
+cycle_dates = [today_dt - timedelta(days=6 - i) for i in range(7)]
 cols = st.columns(7)
+
 for i, d in enumerate(cycle_dates):
     date_str = d.strftime("%Y-%m-%d")
     date_display = d.strftime("%d/%m")
@@ -91,68 +108,87 @@ for i, d in enumerate(cycle_dates):
 st.markdown("")
 if not checked_today:
     if st.button("✨ NHẤN ĐỂ ĐIỂM DANH NGAY HÔM NAY (+10 Xu)", use_container_width=True, type="primary"):
-        new_coins = user.get("coins", 0) + 10
         history_checkins.append(today_str)
+        new_coins = user.get("coins", 0) + 10
+        
         users_col.update_one(
             {"_id": ObjectId(user_id)},
-            {"$set": {"coins": new_coins, "check_in.check_in_history": history_checkins, "check_in.last_check_in_date": today_str}}
+            {
+                "$set": {
+                    "coins": new_coins, 
+                    "check_in.check_in_history": history_checkins, 
+                    "check_in.last_check_in_date": today_str
+                }
+            }
         )
         st.session_state.coins = new_coins
         st.success("🎉 Điểm danh thành công! Bạn nhận được +10 Xu.")
         st.rerun()
 else:
-    st.info("✅ Bạn đã điểm danh ngày hôm nay rồi. Hãy quay lại vào ngày mai nhé!")
+    st.success("✅ Bạn đã điểm danh ngày hôm nay rồi. Tuyệt vời!")
 
 st.markdown("---")
 
-# ================= PHẦN 2: THƯỞNG 5 MỐC JOB (NGÀY / TUẦN / THÁNG) =================
-st.subheader("🎯 Thưởng 5 Mốc Hoàn Thành Job")
-st.markdown("Hoàn thành từng mốc job tương ứng để nhận thưởng xu nóng ngay lập tức!")
+# ================= PHẦN 2: THƯỞNG MỐC JOB (TỐI ƯU KEY & HIỂN THỊ) =================
+st.subheader("🎯 Thưởng Mốc Hoàn Thành Job")
+st.markdown("Hoàn thành các mốc nhiệm vụ để nhận thưởng xu nóng ngay lập tức!")
 
 daily_jobs = job_progress.get("daily_job_count", 0)
 weekly_jobs = job_progress.get("weekly_job_count", 0)
 monthly_jobs = job_progress.get("monthly_job_count", 0)
 claimed_milestones = job_progress.get("claimed_milestones", [])
 
-col1, col2, col3 = st.columns(3)
-
-def render_milestone_section(title, current_val, milestones_config, time_prefix):
-    st.markdown(f"### {title}")
-    st.write(f"Tiến độ hiện tại: **{current_val} Job**")
-    
-    for idx, (target, reward) in enumerate(milestones_config, 1):
-        milestone_key = f"{time_prefix}_{target}_{today_str if time_prefix=='day' else (current_week_str if time_prefix=='week' else current_month_str)}"
+def render_milestone_section(title, current_val, milestones_config, time_prefix, time_id):
+    with st.container(border=True):
+        st.markdown(f"### {title}")
+        st.write(f"Tiến độ hiện tại: **{current_val} Job**")
         
-        progress_val = min(current_val / target, 1.0)
-        st.caption(f"Mốc {idx}: {target} Job (+{reward:,} Xu)")
-        st.progress(progress_val)
-        
-        if current_val >= target:
-            if milestone_key not in claimed_milestones:
-                if st.button(f"Nhận +{reward:,} Xu", key=f"btn_{time_prefix}_{target}"):
-                    new_coins = user.get("coins", 0) + reward
-                    claimed_milestones.append(milestone_key)
-                    users_col.update_one(
-                        {"_id": ObjectId(user_id)},
-                        {"$set": {"coins": new_coins, "job_progress.claimed_milestones": claimed_milestones}}
-                    )
-                    st.session_state.coins = new_coins
-                    st.success(f"Nhận thành công {reward:,} Xu!")
-                    st.rerun()
+        for idx, (target, reward) in enumerate(milestones_config, 1):
+            # Cải tiến: Gắn kèm định danh thời gian vào key để tránh trùng lặp tuyệt đối
+            milestone_key = f"{time_prefix}_{time_id}_{target}"
+            
+            progress_val = min(current_val / target, 1.0)
+            st.caption(f"Mốc {idx}: {target} Job (+{reward:,} Xu)")
+            st.progress(progress_val)
+            
+            if current_val >= target:
+                if milestone_key not in claimed_milestones:
+                    if st.button(f"Nhận +{reward:,} Xu", key=f"btn_{time_prefix}_{target}", use_container_width=True):
+                        updated_user = users_col.find_one_and_update(
+                            {"_id": ObjectId(user_id), "job_progress.claimed_milestones": {"$ne": milestone_key}},
+                            {
+                                "$inc": {"coins": reward},
+                                "$push": {"job_progress.claimed_milestones": milestone_key}
+                            },
+                            return_document=True
+                        )
+                        
+                        if updated_user:
+                            st.session_state.coins = updated_user.get("coins", 0)
+                            st.success(f"Nhận thành công {reward:,} Xu!")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Bạn đã nhận mốc thưởng này rồi!")
+                            st.rerun()
+                else:
+                    st.success(f"✅ Đã nhận mốc {idx}")
             else:
-                st.success(f"✅ Đã nhận mốc {idx}")
-        else:
-            st.info(f"🔒 Chưa đạt (Còn {target - current_val} job)")
-        st.markdown("---")
+                st.info(f"🔒 Chưa đạt (Còn {target - current_val} job)")
+            
+            if idx < len(milestones_config):
+                st.markdown("---")
 
-with col1:
+# Chuyển đổi từ 3 cột ngang sang cấu trúc Tabs hoặc Expander riêng biệt để hiển thị trên mobile cực kỳ mượt mà
+tab_day, tab_week, tab_month = st.tabs(["📌 Mốc Ngày", "📌 Mốc Tuần", "📌 Mốc Tháng"])
+
+with tab_day:
     day_config = [(5, 20), (10, 30), (15, 50), (20, 100), (30, 300)]
-    render_milestone_section("📌 Mốc Ngày", daily_jobs, day_config, "day")
+    render_milestone_section("Thưởng Mốc Ngày", daily_jobs, day_config, "day", today_str)
 
-with col2:
+with tab_week:
     week_config = [(35, 100), (70, 200), (110, 400), (160, 800), (210, 2000)]
-    render_milestone_section("📌 Mốc Tuần", weekly_jobs, week_config, "week")
+    render_milestone_section("Thưởng Mốc Tuần", weekly_jobs, week_config, "week", current_week_str)
 
-with col3:
+with tab_month:
     month_config = [(150, 500), (300, 1000), (500, 2500), (700, 4000), (900, 7000)]
-    render_milestone_section("📌 Mốc Tháng", monthly_jobs, month_config, "month")
+    render_milestone_section("Thưởng Mốc Tháng", monthly_jobs, month_config, "month", current_month_str)

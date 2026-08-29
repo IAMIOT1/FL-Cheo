@@ -35,7 +35,6 @@ with st.form("form_create_campaign"):
     
     if submitted_boost:
         cleaned_link = boost_link.strip()
-        # Cải tiến: Kiểm tra link cơ bản (phải bắt đầu bằng http hoặc https)
         if not cleaned_link or not cleaned_link.startswith("http"):
             st.error("❌ Vui lòng nhập đường dẫn (link) hợp lệ (phải bắt đầu bằng http:// hoặc https://)!")
         else:
@@ -66,11 +65,12 @@ if "pending_campaign" in st.session_state and st.session_state.pending_campaign:
                 del st.session_state.pending_campaign
                 st.rerun()
     else:
-        # Trừ xu và tạo chiến dịch
+        # Trừ xu của user
         users_col.update_one({"_id": ObjectId(st.session_state.user_id)}, {"$inc": {"coins": -camp_data["total_cost"]}})
         
+        # Insert chiến dịch với user_id đồng bộ
         campaigns_col.insert_one({
-            "user": ObjectId(st.session_state.user_id),
+            "user_id": ObjectId(st.session_state.user_id),
             "platform": camp_data["platform"],
             "action_type": camp_data["action_type"],
             "link": camp_data["link"],
@@ -88,9 +88,9 @@ if "pending_campaign" in st.session_state and st.session_state.pending_campaign:
         st.rerun()
 
 st.markdown("---")
-# ================= PHÁT TRIỂN THÊM: QUẢN LÝ CHIẾN DỊCH CỦA TÔI =================
 st.subheader("📋 Quản Lý Chiến Dịch Của Bạn")
-my_campaigns = list(campaigns_col.find({"user": ObjectId(st.session_state.user_id)}).sort("_id", -1))
+
+my_campaigns = list(campaigns_col.find({"user_id": ObjectId(st.session_state.user_id)}).sort("_id", -1))
 
 if not my_campaigns:
     st.info("Bạn chưa tạo chiến dịch tăng tương tác nào.")
@@ -103,16 +103,27 @@ else:
                 st.write(f"🔗 Link: `{camp['link']}`")
                 completed = camp['quantity'] - camp['remaining']
                 st.progress(completed / camp['quantity'] if camp['quantity'] > 0 else 0)
-                st.caption(f"Tiến độ: **{completed}/{camp['quantity']}** lượt | Trạng thái: {'Đang chạy ✅' if camp['active'] else 'Đã dừng ⏸️'}")
+                st.caption(f"Tiến độ: **{completed}/{camp['quantity']}** lượt | Trạng thái: {'Đang chạy ✅' if camp['active'] else 'Đã dừng/Hoàn tất ⏸️'}")
+            
             with col_action:
-                # Nút tắt/bật hoặc hoàn tiền phần còn lại khi hủy chiến dịch
-                if camp['active']:
-                    if st.button("Tắt chiến dịch", key=f"stop_{camp['_id']}"):
-                        campaigns_col.update_one({"_id": camp["_id"]}, {"$set": {"active": False}})
-                        st.success("Đã tạm dừng chiến dịch!")
+                if camp['active'] and camp['remaining'] > 0:
+                    # Nút Dừng & Hoàn Xu phần còn lại chưa chạy
+                    if st.button("🛑 Dừng & Hoàn Xu", key=f"stop_{camp['_id']}", type="secondary"):
+                        refund_amount = camp['remaining'] * camp['original_reward']
+                        
+                        # Cập nhật trạng thái campaign active = False và remaining = 0
+                        campaigns_col.update_one(
+                            {"_id": camp["_id"]}, 
+                            {"$set": {"active": False, "remaining": 0}}
+                        )
+                        
+                        # Hoàn xu vào ví user
+                        users_col.update_one(
+                            {"_id": ObjectId(st.session_state.user_id)}, 
+                            {"$inc": {"coins": refund_amount}}
+                        )
+                        
+                        st.success(f"Đã dừng chiến dịch và hoàn lại **{refund_amount:,} Xu** vào ví!")
                         st.rerun()
                 else:
-                    if st.button("Bật lại", key=f"start_{camp['_id']}"):
-                        campaigns_col.update_one({"_id": camp["_id"]}, {"$set": {"active": True}})
-                        st.success("Đã kích hoạt lại chiến dịch!")
-                        st.rerun()
+                    st.caption("🔒 Đã đóng/Hoàn thành")

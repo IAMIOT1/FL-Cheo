@@ -1,6 +1,8 @@
 from datetime import datetime
+import hashlib
 import os
 import random
+import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -11,22 +13,37 @@ import streamlit as st
 st.set_page_config(page_title="Fl Chéo Tương Tác", page_icon="🚀", layout="centered")
 
 MONGO_URI = st.secrets.get("MONGO_URI") or os.getenv("MONGO_URI")
-EMAIL_SENDER = "toinguyen7126@gmail.com"
-EMAIL_PASSWORD = "japg eyvh ontl dliw"
+EMAIL_SENDER = st.secrets.get("EMAIL_SENDER") or os.getenv("EMAIL_SENDER", "toinguyen7126@gmail.com")
+EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD") or os.getenv("EMAIL_PASSWORD", "japg eyvh ontl dliw")
 
 
 @st.cache_resource
 def init_connection():
-    return MongoClient(MONGO_URI)
+    # Cải tiến: Thêm timeout 5 giây để tránh ứng dụng bị treo khi mất kết nối Database
+    return MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 
 
 try:
     client = init_connection()
+    # Kiểm tra nhanh kết nối thực tế
+    client.admin.command('ping')
     db = client["flcheo_db"]
     users_col = db["users"]
     notifications_col = db["notifications"]
 except Exception as e:
     st.error(f"Lỗi kết nối database: {e}")
+    st.stop()
+
+
+def hash_password(password):
+    """Hàm mã hóa mật khẩu an toàn bằng SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def is_valid_email(email):
+    """Kiểm tra định dạng email hợp lệ cơ bản"""
+    pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+    return re.match(pattern, email) is not None
 
 
 def send_email_pin(receiver_email, pin_code):
@@ -35,10 +52,7 @@ def send_email_pin(receiver_email, pin_code):
         msg["From"] = EMAIL_SENDER
         msg["To"] = receiver_email
         msg["Subject"] = "Mã Xác Thực Đăng Ký Tài Khoản (Fl Chéo)"
-        body = (
-            f"Chào bạn,\n\nMã PIN xác thực tài khoản của bạn là:"
-            f" {pin_code}\n\nTrân trọng!"
-        )
+        body = f"Chào bạn,\n\nMã PIN xác thực tài khoản của bạn là: {pin_code}\n\nTrân trọng!"
         msg.attach(MIMEText(body, "plain"))
 
         server = smtplib.SMTP("smtp.gmail.com", 587)
@@ -80,7 +94,7 @@ if st.session_state.user_id:
     except:
         pass
 
-# Định nghĩa danh sách các trang trên Sidebar (Đã có trang Trợ Lý AI độc lập)
+# Định nghĩa danh sách các trang trên Sidebar
 pages_dict = {
     "Chức Năng Chính": [
         st.Page("pages/1_⚙️_Cau_Hinh_Nick.py", title="Cấu Hình Nick", icon="⚙️"),
@@ -112,7 +126,7 @@ st.title("🚀 Nền Tảng Tăng Tương Tác & Fl Chéo")
 st.markdown("Hệ thống trao đổi tương tác mạng xã hội uy tín, an toàn và nhanh chóng.")
 st.markdown("---")
 
-# Hiển thị thông báo mới nhất từ hệ thống (nếu có)
+# Hiển thị thông báo mới nhất từ hệ thống
 try:
     latest_noti = notifications_col.find_one({"active": True}, sort=[("created_at", -1)])
     if latest_noti:
@@ -140,7 +154,8 @@ if not st.session_state.user_id:
                 user = users_col.find_one(
                     {"$or": [{"username": login_input}, {"email": login_input}]}
                 )
-                if user and user.get("password") == login_password:
+                hashed_input_password = hash_password(login_password)
+                if user and user.get("password") == hashed_input_password:
                     if user.get("banned", False):
                         st.error("Tài khoản này đã bị khóa!")
                     else:
@@ -158,16 +173,20 @@ if not st.session_state.user_id:
             with st.form("reg_step1_form"):
                 reg_user = st.text_input("Tên đăng nhập mới")
                 reg_email = st.text_input("Địa chỉ Email")
-                reg_pass = st.text_input("Mật khẩu", type="password")
-                submitted_reg = st.form_submit_button(
-                    "Gửi Mã Xác Thực (PIN)", use_container_width=True
-                )
+                reg_pass = st.text_input("Mật khẩu (ít nhất 6 ký tự)", type="password")
+                submitted_reg = st.form_submit_button("Gửi Mã Xác Thực (PIN)", use_container_width=True)
 
                 if submitted_reg:
                     if not reg_user or not reg_email or not reg_pass:
                         st.warning("Vui lòng điền đầy đủ thông tin!")
+                    elif not is_valid_email(reg_email):
+                        st.error("Địa chỉ email không hợp lệ!")
+                    elif len(reg_pass) < 6:
+                        st.warning("Mật khẩu phải có ít nhất 6 ký tự!")
                     elif users_col.find_one({"email": reg_email}):
                         st.error("Email này đã được sử dụng bởi tài khoản khác!")
+                    elif users_col.find_one({"username": reg_user}):
+                        st.error("Tên đăng nhập này đã tồn tại!")
                     else:
                         pin = str(random.randint(100000, 999999))
                         success, msg = send_email_pin(reg_email, pin)
@@ -183,11 +202,18 @@ if not st.session_state.user_id:
                             st.error(msg)
 
         elif st.session_state.reg_step == 2:
+            st.info(f"Mã PIN đã được gửi tới email: **{st.session_state.get('temp_email')}**")
             with st.form("reg_step2_form"):
                 entered_pin = st.text_input("Nhập mã PIN 6 số từ email", type="password")
-                submitted_verify = st.form_submit_button(
-                    "Xác Nhận Đăng Ký", use_container_width=True
-                )
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    submitted_verify = st.form_submit_button("Xác Nhận Đăng Ký", use_container_width=True)
+                with col_btn2:
+                    back_to_step1 = st.form_submit_button("Quay lại (Đổi Email)", use_container_width=True)
+
+                if back_to_step1:
+                    st.session_state.reg_step = 1
+                    st.rerun()
 
                 if submitted_verify:
                     if entered_pin == st.session_state.generated_pin:
@@ -195,10 +221,12 @@ if not st.session_state.user_id:
                         current_week = datetime.now().strftime("%Y-W%U")
                         current_month = datetime.now().strftime("%Y-%m")
 
+                        secure_password = hash_password(st.session_state.temp_password)
+
                         res = users_col.insert_one({
                             "username": st.session_state.temp_username,
                             "email": st.session_state.temp_email,
-                            "password": st.session_state.temp_password,
+                            "password": secure_password,
                             "coins": 100,
                             "role": "user",
                             "banned": False,
