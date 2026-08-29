@@ -384,47 +384,82 @@ with tab_analytics:
         )
 
 
-# ================= TAB 4: GỬI THÔNG BÁO =================
+# ================= TAB 4: QUẢN LÝ & GỬI THÔNG BÁO =================
 with tab_notis:
-    st.subheader("📢 Đăng Thông Báo Hệ Thống (Broadcast)")
-    st.markdown(
-        "Thông báo mới nhất sẽ xuất hiện trực tiếp ngay trang chủ khi người dùng"
-        " truy cập."
-    )
-
-    with st.form("noti_form"):
-        n_title = st.text_input(
-            "Tiêu đề thông báo", placeholder="Ví dụ: Cập nhật tính năng mới..."
-        )
-        n_type = st.selectbox(
-            "Loại thông báo",
-            ["Thông báo hệ thống", "Sự kiện Hot 🔥", "Khẩn cấp 🚨"],
-        )
-        n_content = st.text_area(
-            "Nội dung chi tiết", placeholder="Nhập nội dung thông báo..."
-        )
-
-        submitted_noti = st.form_submit_button(
-            "Phát Sóng Thông Báo Ngay", use_container_width=True
-        )
-        if submitted_noti:
-            if not n_title or not n_content:
-                st.warning("Vui lòng điền đầy đủ tiêu đề và nội dung!")
-            else:
-                notifications_col.update_many({}, {"$set": {"active": False}})
-                notifications_col.insert_one(
-                    {
+    st.subheader("📢 Quản Lý & Phát Sóng Thông Báo Hệ Thống")
+    st.markdown("Đăng tải thông báo mới hoặc quản lý danh sách thông báo hiện có trên hệ thống.")
+    
+    # Chia thành 2 cột: Cột trái để đăng mới, Cột phải để quản lý lịch sử thông báo
+    col_n_form, col_n_list = st.columns([1.2, 1.5])
+    
+    with col_n_form:
+        st.markdown("##### ✍️ Soạn Thông Báo Mới")
+        with st.form("noti_form"):
+            n_title = st.text_input("Tiêu đề thông báo", placeholder="Ví dụ: Cập nhật tính năng mới...")
+            n_type = st.selectbox("Loại thông báo", ["Thông báo hệ thống", "Sự kiện Hot 🔥", "Khẩn cấp 🚨"])
+            n_content = st.text_area("Nội dung chi tiết", placeholder="Nhập nội dung thông báo...")
+            
+            submitted_noti = st.form_submit_button("🚀 Phát Sóng Ngay", use_container_width=True)
+            if submitted_noti:
+                if not n_title or not n_content:
+                    st.warning("Vui lòng điền đầy đủ tiêu đề và nội dung!")
+                else:
+                    # Tắt toàn bộ thông báo cũ trước đó
+                    notifications_col.update_many({}, {"$set": {"active": False}})
+                    # Thêm thông báo mới và đặt active = True
+                    notifications_col.insert_one({
                         "title": n_title,
                         "type": n_type,
                         "content": n_content,
                         "created_at": datetime.now(),
                         "active": True,
-                        "admin_email": admin_email_current,
-                    }
-                )
-                log_admin_action(
-                    admin_email_current,
-                    f"Đăng thông báo hệ thống: '{n_title}'",
-                )
-                st.success("Đã đăng thông báo thành công ra trang chủ!")
-                st.rerun()
+                        "admin_email": admin_email_current
+                    })
+                    log_admin_action(admin_email_current, f"Đăng thông báo hệ thống: '{n_title}'")
+                    st.success("Đã đăng thông báo thành công ra trang chủ!")
+                    st.rerun()
+
+    with col_n_list:
+        st.markdown("##### 📜 Lịch Sử & Trạng Thái Thông Báo")
+        st.caption("Danh sách các thông báo đã từng phát sóng gần đây.")
+        
+        all_notis = list(notifications_col.find({}).sort("created_at", -1).limit(10))
+        
+        if not all_notis:
+            st.info("Chưa có thông báo nào được tạo.")
+        else:
+            for n in all_notis:
+                n_id = n.get("_id")
+                title = n.get("title", "Không có tiêu đề")
+                n_type_val = n.get("type", "Thông báo")
+                is_active = n.get("active", False)
+                created_time = n.get("created_at")
+                time_str = created_time.strftime("%d/%m/%Y %H:%M") if isinstance(created_time, datetime) else "Vừa xong"
+                
+                with st.container(border=True):
+                    st.markdown(f"**{title}**")
+                    st.caption(f"Loại: `{n_type_val}` | Thời gian: `{time_str}`")
+                    st.markdown(f"Trạng thái: {'🟢 **Đang hiển thị trang chủ**' if is_active else '⚪ *Đã ẩn*'}")
+                    
+                    col_b1, col_b2 = st.columns(2)
+                    with col_b1:
+                        if not is_active:
+                            if st.button("📢 Bật hiển thị", key=f"activ_{str(n_id)}"):
+                                notifications_col.update_many({}, {"$set": {"active": False}})
+                                notifications_col.update_one({"_id": n_id}, {"$set": {"active": True}})
+                                log_admin_action(admin_email_current, f"Bật hiển thị thông báo: '{title}'")
+                                st.success("Đã kích hoạt thông báo lên trang chủ!")
+                                st.rerun()
+                        else:
+                            if st.button("🔌 Ẩn thông báo", key=f"deactiv_{str(n_id)}"):
+                                notifications_col.update_one({"_id": n_id}, {"$set": {"active": False}})
+                                log_admin_action(admin_email_current, f"Ẩn thông báo: '{title}'")
+                                st.warning("Đã ẩn thông báo khỏi trang chủ!")
+                                st.rerun()
+                                
+                    with col_b2:
+                        if st.button("🗑️ Xóa", key=f"del_n_{str(n_id)}", type="secondary"):
+                            notifications_col.delete_one({"_id": n_id})
+                            log_admin_action(admin_email_current, f"Xóa thông báo: '{title}'")
+                            st.error("Đã xóa thông báo!")
+                            st.rerun()
