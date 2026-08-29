@@ -82,7 +82,7 @@ while check_date.strftime("%Y-%m-%d") in history_checkins:
 
 # ================= PHẦN 1: ĐIỂM DANH 7 NGÀY & THỐNG KÊ STREAK =================
 st.subheader("📅 Bảng Điểm Danh 7 Ngày Gần Nhất")
-st.info(🔥 Chuỗi điểm danh liên tiếp: **{streak_count} ngày** liên tục! Giữ vững phong độ nhé.)
+st.info(f"🔥 Chuỗi điểm danh liên tiếp: **{streak_count} ngày** liên tục! Giữ vững phong độ nhé.")
 
 cycle_dates = [today_dt - timedelta(days=6 - i) for i in range(7)]
 cols = st.columns(7)
@@ -129,7 +129,7 @@ else:
 
 st.markdown("---")
 
-# ================= PHẦN 2: THƯỞNG MỐC JOB (TỐI ƯU KEY & HIỂN THỊ) =================
+# ================= PHẦN 2: THƯỞNG MỐC JOB =================
 st.subheader("🎯 Thưởng Mốc Hoàn Thành Job")
 st.markdown("Hoàn thành các mốc nhiệm vụ để nhận thưởng xu nóng ngay lập tức!")
 
@@ -144,7 +144,6 @@ def render_milestone_section(title, current_val, milestones_config, time_prefix,
         st.write(f"Tiến độ hiện tại: **{current_val} Job**")
         
         for idx, (target, reward) in enumerate(milestones_config, 1):
-            # Cải tiến: Gắn kèm định danh thời gian vào key để tránh trùng lặp tuyệt đối
             milestone_key = f"{time_prefix}_{time_id}_{target}"
             
             progress_val = min(current_val / target, 1.0)
@@ -178,7 +177,6 @@ def render_milestone_section(title, current_val, milestones_config, time_prefix,
             if idx < len(milestones_config):
                 st.markdown("---")
 
-# Chuyển đổi từ 3 cột ngang sang cấu trúc Tabs hoặc Expander riêng biệt để hiển thị trên mobile cực kỳ mượt mà
 tab_day, tab_week, tab_month = st.tabs(["📌 Mốc Ngày", "📌 Mốc Tuần", "📌 Mốc Tháng"])
 
 with tab_day:
