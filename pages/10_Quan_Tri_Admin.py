@@ -384,76 +384,139 @@ with tab_analytics:
         )
 
 
-# ================= TAB 4: QUẢN LÝ & GỬI THÔNG BÁO =================
+# ================= TAB 4: QUẢN LÝ & GỬI THÔNG BÁO (HẸN GIỜ & ĐẾM NGƯỢC) =================
 with tab_notis:
-    st.subheader("📢 Quản Lý & Phát Sóng Thông Báo Hệ Thống")
-    st.markdown("Đăng tải thông báo mới hoặc quản lý danh sách thông báo hiện có trên hệ thống.")
+    st.subheader("📢 Quản Lý & Phát Sóng Thông Báo (Có Hẹn Giờ Tự Động)")
+    st.markdown("Hệ thống sẽ tự động bật/tắt thông báo dựa trên khoảng thời gian anh thiết lập bên dưới.")
     
-    # Chia thành 2 cột: Cột trái để đăng mới, Cột phải để quản lý lịch sử thông báo
     col_n_form, col_n_list = st.columns([1.2, 1.5])
     
     with col_n_form:
-        st.markdown("##### ✍️ Soạn Thông Báo Mới")
+        st.markdown("##### ✍️ Soạn Thông Báo & Hẹn Giờ")
         with st.form("noti_form"):
-            n_title = st.text_input("Tiêu đề thông báo", placeholder="Ví dụ: Cập nhật tính năng mới...")
+            n_title = st.text_input("Tiêu đề thông báo", placeholder="Ví dụ: Sự kiện đua top x2 xu...")
             n_type = st.selectbox("Loại thông báo", ["Thông báo hệ thống", "Sự kiện Hot 🔥", "Khẩn cấp 🚨"])
             n_content = st.text_area("Nội dung chi tiết", placeholder="Nhập nội dung thông báo...")
             
-            submitted_noti = st.form_submit_button("🚀 Phát Sóng Ngay", use_container_width=True)
+            st.markdown("---")
+            st.markdown("##### ⏰ Cài đặt thời gian hiển thị tự động")
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                start_date = st.date_input("Ngày bắt đầu", value=datetime.now().date())
+                start_time = st.time_input("Giờ bắt đầu", value=datetime.now().time())
+            with col_d2:
+                # Mặc định kết thúc sau 24h kể từ bây giờ
+                default_end_dt = datetime.now() + timedelta(days=1)
+                end_date = st.date_input("Ngày kết thúc", value=default_end_dt.date())
+                end_time = st.time_input("Giờ kết thúc", value=default_end_dt.time())
+                
+            start_datetime = datetime.combine(start_date, start_time)
+            end_datetime = datetime.combine(end_date, end_time)
+            
+            submitted_noti = st.form_submit_button("🚀 Lên Lịch & Phát Sóng", use_container_width=True)
             if submitted_noti:
                 if not n_title or not n_content:
                     st.warning("Vui lòng điền đầy đủ tiêu đề và nội dung!")
+                elif start_datetime >= end_datetime:
+                    st.error("Thời gian kết thúc phải lớn hơn thời gian bắt đầu!")
                 else:
-                    # Tắt toàn bộ thông báo cũ trước đó
-                    notifications_col.update_many({}, {"$set": {"active": False}})
-                    # Thêm thông báo mới và đặt active = True
+                    # Nếu thời gian bắt đầu là ngay bây giờ (hoặc trong quá khứ gần), ta set active = True luôn
+                    now_time = datetime.now()
+                    is_currently_active = start_datetime <= now_time <= end_datetime
+                    
+                    if is_currently_active:
+                        notifications_col.update_many({}, {"$set": {"active": False}})
+                    
                     notifications_col.insert_one({
                         "title": n_title,
                         "type": n_type,
                         "content": n_content,
-                        "created_at": datetime.now(),
-                        "active": True,
+                        "start_at": start_datetime,
+                        "end_at": end_datetime,
+                        "created_at": now_time,
+                        "active": is_currently_active,
                         "admin_email": admin_email_current
                     })
-                    log_admin_action(admin_email_current, f"Đăng thông báo hệ thống: '{n_title}'")
-                    st.success("Đã đăng thông báo thành công ra trang chủ!")
+                    log_admin_action(admin_email_current, f"Lên lịch thông báo: '{n_title}' (Từ {start_datetime} đến {end_datetime})")
+                    st.success("Đã tạo và lên lịch thông báo thành công!")
                     st.rerun()
 
     with col_n_list:
-        st.markdown("##### 📜 Lịch Sử & Trạng Thái Thông Báo")
-        st.caption("Danh sách các thông báo đã từng phát sóng gần đây.")
+        st.markdown("##### 📜 Lịch Sử, Hẹn Giờ & Đếm Ngược")
+        st.caption("Trạng thái tự động bật/tắt theo lịch hẹn.")
         
+        # Tự động quét cập nhật trạng thái active dựa vào thời gian thực trước khi hiển thị danh sách
+        now_time = datetime.now()
         all_notis = list(notifications_col.find({}).sort("created_at", -1).limit(10))
         
-        if not all_notis:
+        # Cập nhật ngầm trạng thái tự động bật/tắt theo giờ hệ thống
+        for n in all_notis:
+            n_id = n.get("_id")
+            s_at = n.get("start_at")
+            e_at = n.get("end_at")
+            current_active = n.get("active", False)
+            
+            if s_at and e_at:
+                should_be_active = s_at <= now_time <= e_at
+                # Nếu trạng thái thực tế lệch với thời gian hẹn giờ thì tự động cập nhật Database
+                if should_be_active != current_active:
+                    if should_be_active:
+                        notifications_col.update_many({}, {"$set": {"active": False}})
+                    notifications_col.update_one({"_id": n_id}, {"$set": {"active": should_be_active}})
+
+        # Load lại danh sách sau khi đã tự động cập nhật
+        all_notis_refreshed = list(notifications_col.find({}).sort("created_at", -1).limit(10))
+        
+        if not all_notis_refreshed:
             st.info("Chưa có thông báo nào được tạo.")
         else:
-            for n in all_notis:
+            for n in all_notis_refreshed:
                 n_id = n.get("_id")
                 title = n.get("title", "Không có tiêu đề")
                 n_type_val = n.get("type", "Thông báo")
                 is_active = n.get("active", False)
-                created_time = n.get("created_at")
-                time_str = created_time.strftime("%d/%m/%Y %H:%M") if isinstance(created_time, datetime) else "Vừa xong"
+                s_at = n.get("start_at")
+                e_at = n.get("end_at")
                 
+                # Tính thời gian đếm ngược
+                countdown_text = ""
+                if s_at and e_at:
+                    if now_time < s_at:
+                        diff = s_at - now_time
+                        hours, remainder = divmod(int(diff.total_seconds()), 3600)
+                        minutes = remainder // 60
+                        countdown_text = f"⏳ Sắp chạy sau: **{hours}h {minutes}p**"
+                    elif s_at <= now_time <= e_at:
+                        diff = e_at - now_time
+                        hours, remainder = divmod(int(diff.total_seconds()), 3600)
+                        minutes = remainder // 60
+                        countdown_text = f"🔥 Còn lại: **{hours}h {minutes}p** hết hạn"
+                    else:
+                        countdown_text = "⌛ Đã kết thúc lịch hẹn"
+
                 with st.container(border=True):
                     st.markdown(f"**{title}**")
-                    st.caption(f"Loại: `{n_type_val}` | Thời gian: `{time_str}`")
-                    st.markdown(f"Trạng thái: {'🟢 **Đang hiển thị trang chủ**' if is_active else '⚪ *Đã ẩn*'}")
+                    st.caption(f"Loại: `{n_type_val}`")
+                    if s_at and e_at:
+                        st.text(f"⏰ Từ: {s_at.strftime('%d/%m %H:%M')} ➔ Đến: {e_at.strftime('%d/%m %H:%M')}")
+                    
+                    st.markdown(f"Trạng thái: {'🟢 **Đang hiển thị trang chủ**' if is_active else '⚪ *Chưa kích hoạt / Đã ẩn*'}")
+                    if countdown_text:
+                        st.info(countdown_text)
                     
                     col_b1, col_b2 = st.columns(2)
                     with col_b1:
                         if not is_active:
-                            if st.button("📢 Bật hiển thị", key=f"activ_{str(n_id)}"):
+                            if st.button("📢 Bật thủ công", key=f"activ_{str(n_id)}"):
                                 notifications_col.update_many({}, {"$set": {"active": False}})
                                 notifications_col.update_one({"_id": n_id}, {"$set": {"active": True}})
-                                log_admin_action(admin_email_current, f"Bật hiển thị thông báo: '{title}'")
+                                log_admin_action(admin_email_current, f"Bật thủ công thông báo: '{title}'")
                                 st.success("Đã kích hoạt thông báo lên trang chủ!")
                                 st.rerun()
                         else:
-                            if st.button("🔌 Ẩn thông báo", key=f"deactiv_{str(n_id)}"):
+                            if st.button("🔌 Tắt thủ công", key=f"deactiv_{str(n_id)}"):
                                 notifications_col.update_one({"_id": n_id}, {"$set": {"active": False}})
-                                log_admin_action(admin_email_current, f"Ẩn thông báo: '{title}'")
+                                log_admin_action(admin_email_current, f"Tắt thủ công thông báo: '{title}'")
                                 st.warning("Đã ẩn thông báo khỏi trang chủ!")
                                 st.rerun()
                                 
