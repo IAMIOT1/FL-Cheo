@@ -19,13 +19,11 @@ EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD") or os.getenv("EMAIL_PASSWORD",
 
 @st.cache_resource
 def init_connection():
-    # Cải tiến: Thêm timeout 5 giây để tránh ứng dụng bị treo khi mất kết nối Database
     return MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 
 
 try:
     client = init_connection()
-    # Kiểm tra nhanh kết nối thực tế
     client.admin.command('ping')
     db = client["flcheo_db"]
     users_col = db["users"]
@@ -36,12 +34,10 @@ except Exception as e:
 
 
 def hash_password(password):
-    """Hàm mã hóa mật khẩu an toàn bằng SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
 
 
 def is_valid_email(email):
-    """Kiểm tra định dạng email hợp lệ cơ bản"""
     pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
     return re.match(pattern, email) is not None
 
@@ -74,7 +70,6 @@ if "coins" not in st.session_state:
 if "reg_step" not in st.session_state:
     st.session_state.reg_step = 1
 
-# Kiểm tra quyền Admin & Cập nhật last_active (Trạng thái Online)
 is_admin = False
 if st.session_state.user_id:
     try:
@@ -94,7 +89,6 @@ if st.session_state.user_id:
     except:
         pass
 
-# Định nghĩa danh sách các trang trên Sidebar
 pages_dict = {
     "Chức Năng Chính": [
         st.Page("pages/1_⚙️_Cau_Hinh_Nick.py", title="Cấu Hình Nick", icon="⚙️"),
@@ -121,12 +115,10 @@ if is_admin:
 
 pg = st.navigation(pages_dict)
 
-# Giao diện chính của Trang Chủ
 st.title("🚀 Nền Tảng Tăng Tương Tác & Fl Chéo")
 st.markdown("Hệ thống trao đổi tương tác mạng xã hội uy tín, an toàn và nhanh chóng.")
 st.markdown("---")
 
-# Hiển thị thông báo mới nhất từ hệ thống
 try:
     latest_noti = notifications_col.find_one({"active": True}, sort=[("created_at", -1)])
     if latest_noti:
