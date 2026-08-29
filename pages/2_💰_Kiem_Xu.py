@@ -18,6 +18,7 @@ try:
     users_col = db["users"]
     accounts_col = db["configured_accounts"] # Collection cấu hình nick
     campaigns_col = db["campaigns"] # Collection chứa chiến dịch/yêu cầu chéo từ người dùng
+    history_col = db["job_history"] # Collection lịch sử làm job để đồng bộ bảng xếp hạng
 except Exception as e:
     st.error(f"Lỗi kết nối database: {e}")
 
@@ -43,10 +44,9 @@ configured_instagram = accounts_col.find_one({"user_id": user_id_obj, "platform"
 
 tab_tt, tab_fb, tab_ins = st.tabs(["🎵 TikTok Job", "📘 Facebook Job", "📸 Instagram Job"])
 
-# Hàm xử lý hoàn thành Job thực tế từ chiến dịch của người khác
+# Hàm xử lý hoàn thành Job thực tế từ chiến dịch của người khác (ĐÃ ĐỒNG BỘ LỊCH SỬ JOB)
 def complete_real_job(campaign_id, reward_coins, platform_name):
     try:
-        # Lấy thông tin chiến dịch để trừ số lượng cần tăng hoặc đánh dấu hoàn thành
         camp = campaigns_col.find_one({"_id": ObjectId(campaign_id)})
         if not camp:
             st.error("❌ Chiến dịch này không còn tồn tại hoặc đã bị xóa!")
@@ -54,7 +54,7 @@ def complete_real_job(campaign_id, reward_coins, platform_name):
 
         current_coins = user.get("coins", 0) + reward_coins
         
-        # Cập nhật số xu cho người làm job
+        # 1. Cập nhật số xu và tiến độ job cho user
         users_col.update_one(
             {"_id": user_id_obj},
             {
@@ -67,11 +67,20 @@ def complete_real_job(campaign_id, reward_coins, platform_name):
             }
         )
         
-        # Giảm số lượng cần làm của chiến dịch đi 1, nếu hết thì trạng thái có thể hoàn thành
+        # 2. Giảm số lượng cần làm của chiến dịch đi 1
         campaigns_col.update_one(
             {"_id": ObjectId(campaign_id)},
             {"$inc": {"remaining": -1}}
         )
+
+        # 3. Ghi nhận vào collection job_history ĐỂ ĐỒNG BỘ VỚI BẢNG XẾP HẠNG THỢ CÀY
+        history_col.insert_one({
+            "user_id": user_id_obj,
+            "campaign_id": ObjectId(campaign_id),
+            "platform": platform_name,
+            "reward": reward_coins,
+            "completed_at": datetime.now()
+        })
 
         st.session_state.coins = current_coins
         st.success(f"🎉 Hoàn thành Job {platform_name}! Nhận được +{reward_coins} Xu.")
@@ -85,8 +94,6 @@ with tab_tt:
         st.success(f"✅ Đã kết nối nick TikTok: `{configured_tiktok.get('account_info', 'N/A')}`")
         st.markdown("---")
         
-        # Lấy các chiến dịch TikTok còn lại lượng tương tác và không phải do chính user này tạo
-        # (Giả định chiến dịch lưu platform="TikTok", remaining > 0, và user_email khác user hiện tại)
         user_email = user.get("email")
         tiktok_campaigns = list(campaigns_col.find({
             "platform": {"$regex": "TikTok", "$options": "i"},
@@ -97,7 +104,7 @@ with tab_tt:
         if not tiktok_campaigns:
             st.info("📭 Hiện tại chưa có yêu cầu (chiến dịch) TikTok nào từ cộng đồng. Vui lòng quay lại sau!")
         else:
-            st.write(f"Tìm thấy **{len(path := tiktok_campaigns) and len(tiktok_campaigns)}** nhiệm vụ khả dụng:")
+            st.write(f"Tìm thấy **{len(tiktok_campaigns)}** nhiệm vụ khả dụng:")
             for camp in tiktok_campaigns:
                 c_id = camp.get("_id")
                 c_link = camp.get("link", camp.get("url", "#"))
@@ -105,7 +112,7 @@ with tab_tt:
                 c_type = camp.get("action_type", "Follow / Thả tim")
 
                 with st.container(border=True):
-                    st.markdown(link_md := f"🔗 **Link nhiệm vụ:** [{c_link}]({c_link})")
+                    st.markdown(f"🔗 **Link nhiệm vụ:** [{c_link}]({c_link})")
                     st.markdown(f"📝 **Loại:** {c_type} | 🪙 **Thưởng:** `{c_reward} Xu`")
                     
                     col1, col2 = st.columns([1, 3])
